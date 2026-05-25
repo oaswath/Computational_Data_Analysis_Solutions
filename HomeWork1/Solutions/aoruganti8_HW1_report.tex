@@ -1,0 +1,904 @@
+\documentclass[twoside, 10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{tabularx}
+\geometry{margin=1in}
+
+% Page geometry
+\geometry{margin=1in}
+
+% Color definitions
+\definecolor{primaryblue}{RGB}{26, 54, 93}
+\definecolor{darkgrey}{RGB}{45, 55, 72}
+
+% Global paragraph settings
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+
+% --- FIXED NUMBERING MACROS ---
+\renewcommand{\thesubsection}{\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}} 
+
+% Define the paragraph macro to act as your 3-digit sub-subsubsection (2.4.1)
+\renewcommand{\theparagraph}{\thesubsubsection.\arabic{paragraph}} 
+
+% Force paragraph headings to have their own standalone line instead of running inline
+\makeatletter
+\renewcommand{\paragraph}{\@startsection{paragraph}{4}{\z@}%
+    {-3.25ex\@plus -1ex \@minus -.2ex}%
+    {1.5ex \@plus .2ex}%
+    {\normalfont\normalsize\bfseries}}
+\makeatother
+
+% Ensure LaTeX numbers headings down to the paragraph level
+\setcounter{secnumdepth}{4}
+% ------------------------------
+
+\usepackage{titlesec}
+
+% Modify subsection: keep default size (\large) and alignment, but force normal font weight
+\titleformat{\subsection}
+  {\normalfont\large\fontseries{m}\selectfont} % Medium weight instead of bold
+  {\thesubsection.}                            % Format for the number (e.g., 1.)
+  {0.5em}                                      % Spacing between number and text
+  {}
+
+\begin{document}
+
+\title{\textbf{\Large HomeWork1}}
+\author{Aswath Oruganti}
+\maketitle
+
+\section{Concept Questions}
+
+
+\subsection{Equivalence of clustering assignment formulations}
+Show that the standard clustering assignment problem based on the squared Euclidean distance:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} \|x_i - c_j\|^2
+\end{equation}
+is mathematically equivalent to solving the simplified formulation:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} (c_j)^T \left( \frac{1}{2}c_j - x_i \right)
+\end{equation}
+
+\subsubsection{Analytical proof of equivalence} % WILL RENDER AS: 1.1
+
+We can algebraically expand the objective function inside the $\arg\min$ operator of the standard formulation to establish the equivalence between the above two formulations. 
+The squared Euclidean distance ($L_2$ norm) between a data point $x_i \in \mathbb{R}^n$ and a cluster centroid $c_j \in \mathbb{R}^n$ can be expressed as the vector inner product of their difference with itself:
+\begin{equation}
+\|x_i - c_j\|^2 = (x_i - c_j)^T (x_i - c_j)
+\end{equation}
+
+Expanding the vector transposition yields:
+\begin{align}
+\|x_i - c_j\|^2 &= (x_i^T - c_j^T)(x_i - c_j) \nonumber \\
+&= x_i^T x_i - x_i^T c_j - c_j^T x_i + c_j^T c_j
+\end{align}
+
+Because the inner product of two vectors is a scalar, the operation is commutative, meaning the order of multiplication does not matter ($x_i^T c_j = c_j^T x_i$). Combining these middle terms yields:
+\begin{equation}
+\|x_i - c_j\|^2 = x_i^T x_i - 2(c_j)^T x_i + (c_j)^T c_j
+\end{equation}
+
+We now substitute this expanded trinomial back into the original optimization operator:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} \left( x_i^T x_i - 2(c_j)^T x_i + (c_j)^T c_j \right)
+\end{equation}
+
+\subsubsection{Dropping the Constant Shift Term} % WILL RENDER AS: 1.2
+The optimization operator $\arg\min$ evaluates candidate choices along the cluster index $j$. The first term, $x_i^T x_i$, depends exclusively on the specific data point $x_i$ and remains completely constant across all choices of $j$. 
+
+Adding or subtracting a constant across all candidates preserves their relative ordering and does not change the location of the minimum. Therefore, we can safely drop the term $x_i^T x_i$ without altering the optimal index outcome:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} \left( (c_j)^T c_j - 2(c_j)^T x_i \right)
+\end{equation}
+
+\subsubsection{Constant Positive Scaling \& Factoring} % WILL RENDER AS: 1.3
+Multiplying an objective function by a strictly positive scalar uniformly scales the resulting distances but preserves their monotonic ordering. We scale the objective function inside the operator by a positive factor of $\frac{1}{2}$:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} \left( \frac{1}{2}(c_j)^T c_j - (c_j)^T x_i \right)
+\end{equation}
+
+Finally, by applying the distributive property of matrix multiplication, we factor out the shared row vector $(c_j)^T$ from both remaining terms:
+\begin{equation}
+j^{(i)} = \arg\min_{j=1, \dots, k} (c_j)^T \left( \frac{1}{2}c_j - x_i \right)
+\end{equation}
+
+This exactly matches the target expression, completing the analytical proof.
+
+\subsubsection{Computational Result Summary} % WILL RENDER AS: 1.4
+
+\begin{itemize}
+    \item \textbf{Mathematical Equivalence:} The proof demonstrates that minimizing geometric distance to a cluster center is mathematically identical to finding a penalized vector projection.
+    \item \textbf{Algorithmic Limitation of Equation (1):} Direct calculation of $\|x_i - c_j\|^2$ requires element-wise subtraction loops or expensive memory broadcasting arrays across every data-point-to-centroid pair.
+    \item \textbf{Vectorization Advantage of Equation (2):} The reformulated expression decouples the data terms from the purely centroid-dependent terms. This allows the cluster assignment operation for an entire dataset matrix $\mathbf{X}$ and centroid matrix $\mathbf{C}$ to be offloaded into a single, highly optimized \textbf{Level 3 BLAS Matrix Multiplication (GEMM)} routine:
+    \begin{equation*}
+    \mathbf{A} = \mathbf{C}^T \left( \frac{1}{2}\mathbf{C} - \mathbf{X} \right)
+    \end{equation*}
+    This eliminates loop overhead and provides massive execution speedups in modern data science libraries.
+\end{itemize}
+
+
+\subsection{Graph Laplacian and Spectral Clustering} % WILL RENDER AS: 2
+\setcounter{subsubsection}{0} % FIX: Resets the subsubsection sub-counter back to zero for the next section
+
+Consider the following simple graph:
+\begin{center}
+    \includegraphics[width = 0.4\textwidth]{images/plot.pdf}
+\end{center}
+
+Write down the graph Laplacian matrix and find the eigenvectors associated with the zero eigenvalues. Explain how you find out the number of disconnected clusters in the graph and identify these disconnected clusters using these eigenvectors.
+
+\subsubsection{Spectral Graph Theory Analysis} % WILL RENDER AS: 2.1
+
+To solve this spectral graph theory problem, we will break it down into three steps: constructing the matrices, finding the specific eigenvectors, and explaining the connection between zero eigenvalues and the graph's components.
+
+\subsubsection{Write Down the Graph Laplacian Matrix} % WILL RENDER AS: 2.2
+The graph Laplacian matrix $L$ is defined as $L = D - A$, where $D$ is the degree matrix (a diagonal matrix indicating how many edges connect to each node) and $A$ is the adjacency matrix (indicating which nodes share an edge).
+
+Looking at the graph structure:
+\begin{itemize}
+    \item Node 1 is connected to 2 and 3 (Degree = 2)
+    \item Node 2 is connected to 1 and 3 (Degree = 2)
+    \item Node 3 is connected to 1 and 2 (Degree = 2)
+    \item Node 4 is connected to 5 (Degree = 1)
+    \item Node 5 is connected to 4 (Degree = 1)
+\end{itemize}
+
+\textbf{Degree Matrix ($D$)}
+\begin{equation*}
+D = \begin{bmatrix} 
+2 & 0 & 0 & 0 & 0 \\ 
+0 & 2 & 0 & 0 & 0 \\ 
+0 & 0 & 2 & 0 & 0 \\ 
+0 & 0 & 0 & 1 & 0 \\ 
+0 & 0 & 0 & 0 & 1 
+\end{bmatrix}
+\end{equation*}
+
+\textbf{Adjacency Matrix ($A$)}
+\begin{equation*}
+A = \begin{bmatrix} 
+0 & 1 & 1 & 0 & 0 \\ 
+1 & 0 & 1 & 0 & 0 \\ 
+1 & 1 & 0 & 0 & 0 \\ 
+0 & 0 & 0 & 0 & 1 \\ 
+0 & 0 & 0 & 1 & 0 
+\end{bmatrix}
+\end{equation*}
+
+\textbf{Graph Laplacian Matrix ($L = D - A$)}
+\begin{equation*}
+L = \begin{bmatrix} 
+ 2 & -1 & -1 &  0 &  0 \\ 
+-1 &  2 & -1 &  0 &  0 \\ 
+-1 & -1 &  2 &  0 &  0 \\ 
+ 0 &  0 &  0 &  1 & -1 \\ 
+ 0 &  0 &  0 & -1 &  1 
+\end{bmatrix}
+\end{equation*}
+
+\subsubsection{Find the Eigenvectors Associated with the Zero Eigenvalues} % WILL RENDER AS: 2.3
+A fundamental property of any graph Laplacian is that a vector acts as an eigenvector for $\lambda = 0$ if and only if it is constant across all nodes within the same connected component, and zero everywhere else.
+
+Because our graph is cleanly disconnected into two distinct blocks, we can read the indicator vectors right off the matrix structure:
+
+\textbf{For the first connected component (Nodes 1, 2, 3):} \\
+The eigenvector $v_1$ has $1$s for positions 1, 2, and 3, and $0$s elsewhere.
+\begin{equation*}
+v_1 = \begin{bmatrix} 1 \\ 1 \\ 1 \\ 0 \\ 0 \end{bmatrix}
+\end{equation*}
+\textit{Verification:} $L \cdot v_1 = [0, 0, 0, 0, 0]^T = 0 \cdot v_1$
+
+\textbf{For the second connected component (Nodes 4, 5):} \\
+The eigenvector $v_2$ has $1$s for positions 4 and 5, and $0$s elsewhere.
+\begin{equation*}
+v_2 = \begin{bmatrix} 0 \\ 0 \\ 0 \\ 1 \\ 1 \end{bmatrix}
+\end{equation*}
+\textit{Verification:} $L \cdot v_2 = [0, 0, 0, 0, 0]^T = 0 \cdot v_2$
+
+\noindent \textit{Note:} Any linear combination or normalized version of these two orthogonal vectors is also a valid basis for this structural eigenspace, such as:
+\begin{equation*}
+{\left[\frac{1}{\sqrt{3}},\frac{1}{\sqrt{3}},\frac{1}{\sqrt{3}},0,0\right]}^{T}
+\end{equation*}
+
+\subsubsection{Determining and Identifying Disconnected Clusters} 
+
+\paragraph{Finding the Number of Disconnected Clusters} 
+In spectral graph theory, the multiplicity of the eigenvalue $\lambda = 0$ is exactly equal to the number of connected components (or disconnected clusters) in the graph. By finding the dimension of the null space (the geometric multiplicity of $\lambda = 0$), we see that there are exactly 2 linearly independent eigenvectors that solve $L v = 0v$. Therefore, there are exactly 2 disconnected clusters in the graph.
+
+\paragraph{Identifying the Clusters Using the Eigenvectors} 
+To identify which specific nodes belong to which cluster, we examine the non-zero coordinates of our zero-eigenvalue basis vectors:
+\begin{itemize}
+    \item \textbf{Cluster 1 Detection:} Look at eigenvector $v_1 = [1, 1, 1, 0, 0]^T$. The non-zero entries are at index positions 1, 2, and 3. This tells us that \textbf{\{Node 1, Node 2, Node 3\}} form the first isolated cluster.
+    \item \textbf{Cluster 2 Detection:} Look at eigenvector $v_2 = [0, 0, 0, 1, 1]^T$. The non-zero entries are at index positions 4 and 5. This tells us that \textbf{\{Node 4, Node 5\}} form the second isolated cluster.
+\end{itemize}
+
+\section{Math of k-means clustering}
+
+Given $m$ data points $x^i \in \mathbb{R}^n, i = 1, \dots, m$, the $K$-means clustering algorithm groups them into $k$ clusters by minimizing the distortion function over $\{r^{ij}, \mu^j\}$:
+\begin{equation}
+J = \frac{1}{mk} \sum_{i=1}^{m} \sum_{j=1}^{k} r^{ij} \|x^i - \mu^j\|^2
+\end{equation}
+where $r^{ij} = 1$ if $x^i$ belongs to the $j$-th cluster and $r^{ij} = 0$ otherwise.
+
+\subsection{Derive mathematically that using the squared Euclidean distance $\|x_i - \mu_j\|^2$ as the dissimilarity function, the centroid that minimizes the distortion function $J$ for given assignments $r_{ij}$ are given by:}
+
+\begin{equation*}
+\mu_j = \frac{\sum_{i} r_{ij} x_i}{\sum_{i} r_{ij}}
+\end{equation*}
+
+That is, $\mu_j$ is the center of the $j$-th cluster.
+
+\textit{Hint: You may start by taking the partial derivative of $J$ with respect to $\mu_j$, with $r_{ij}$ fixed.}
+
+\subsubsection{Derivation of the Optimal Centroids $\mu^j$}
+To mathematically derive that using the squared Euclidean distance $\|x^i - \mu^j\|^2$ as the dissimilarity function, the centroid that minimizes the distortion function $J$ for given assignments $r^{ij}$ is given by:
+\begin{equation}
+\mu^j = \frac{\sum_{i} r^{ij} x^i}{\sum_{i} r^{ij}}
+\end{equation}
+That is, $\mu^j$ is the center of the $j$-th cluster.
+
+To find the minimum with respect to a specific cluster centroid $\mu^j$, we take the partial derivative of $J$ with respect to $\mu^j$, with $r^{ij}$ held fixed. First, we rewrite the squared $L_2$ norm using the vector inner product:
+\begin{equation}
+\|x^i - \mu^j\|^2 = (x^i - \mu^j)^T(x^i - \mu^j)
+\end{equation}
+
+Taking the partial derivative with respect to the vector $\mu^j$:
+\begin{equation}
+\frac{\partial J}{\partial \mu^j} = \frac{\partial}{\partial \mu^j} \left[ \frac{1}{mk} \sum_{i=1}^{m} r^{ij} (x^i - \mu^j)^T(x^i - \mu^j) \right]
+\end{equation}
+
+Using the matrix calculus chain rule identity $\frac{\partial}{\partial v} (u - v)^T(u - v) = -2(u - v)$, we expand the gradient evaluation:
+\begin{equation}
+\frac{\partial J}{\partial \mu^j} = -\frac{2}{mk} \sum_{i=1}^{m} r^{ij}(x^i - \mu^j)
+\end{equation}
+
+Setting this gradient equal to the zero vector to evaluate the minimum points:
+\begin{equation}
+-\frac{2}{mk} \sum_{i=1}^{m} r^{ij}(x^i - \mu^j) = 0
+\end{equation}
+
+Multiplying through by the positive scalar $-\frac{mk}{2}$ isolates the summation:
+\begin{equation}
+\sum_{i=1}^{m} r^{ij}(x^i - \mu^j) = 0
+\end{equation}
+
+Distributing the summation across both internal terms yields:
+\begin{equation}
+\sum_{i=1}^{m} r^{ij}x^i - \sum_{i=1}^{m} r^{ij}\mu^j = 0
+\end{equation}
+
+Since the prototype target vector $\mu^j$ does not depend on the index variable $i$, it remains constant relative to the summation and can be safely factored out:
+\begin{equation}
+\sum_{i=1}^{m} r^{ij}x^i = \mu^j \sum_{i=1}^{m} r^{ij}
+\end{equation}
+
+Solving explicitly for $\mu^j$ completes the proof, yielding the standard arithmetic coordinate mean:
+\begin{equation}
+\mu^j = \frac{\sum_{i=1}^{m} r^{ij}x^i}{\sum_{i=1}^{m} r^{ij}}
+\end{equation}
+
+\subsection{Derive mathematically what should be the assignment variables $r_{ij}$ be to minimize the distortion function $J$, when the centroids $\mu_j$ are fixed.}
+
+\subsubsection{Derivation of the Optimal Assignments $r^{ij}$}
+To derive mathematically what the assignment variables $r^{ij}$ should be to minimize the distortion function $J$ when the centroids $\mu^j$ are held completely fixed, we analyze the categorical choice layout.
+
+The categorical constraint on $r^{ij}$ mandates that each discrete data point $x^i$ belongs to exactly one cluster, meaning $r^{ij} \in \{0, 1\}$ and $\sum_{j=1}^k r^{ij} = 1$. We decouple the global objective function into independent parameters for each data point:
+\begin{equation}
+J = \frac{1}{mk} \sum_{i=1}^{m} \left( \sum_{j=1}^{k} r^{ij} \|x^i - \mu^j\|^2 \right)
+\end{equation}
+
+Because the indicator assignment matrix parameter for point $x^i$ holds zero influence over the coordinate paths of another distinct point $x^{i'}$, we can minimize the inner expression independently for each individual data item:
+\begin{equation}
+\min_{r^{i1}, \dots, r^{ik}} \sum_{j=1}^{k} r^{ij} \|x^i - \mu^j\|^2 \quad \text{subject to} \quad \sum_{j=1}^k r^{ij} = 1, \; r^{ij} \in \{0,1\}
+\end{equation}
+
+Since exactly one binary assignment variable $r^{ij}$ can equal 1 per row, the inner summation simply returns the squared Euclidean geometric distance to whichever specific cluster prototype $j$ is activated. To make this summation as small as possible, the selector must point exclusively to the minimum distance index:
+\begin{equation}
+r^{ij} = \begin{cases} 1 & \text{if } j = \arg\min_{c} \|x^i - \mu^c\|^2 \\ 0 & \text{otherwise} \end{cases}
+\end{equation}
+
+\subsection{For the question above, now suppose we change the similar score to a ``quadratic'' distance (also known as Mahalanobis distance) for given and fixed positive definite matrix $\Sigma \in \mathbb{R}^{n \times n}$, and the distortion function becomes $J = \frac{1}{mk} \sum_{i=1}^{m} \sum_{j=1}^{k} r_{ij}(x_i - \mu_j)^T \Sigma (x_i - \mu_j)$. Derive what $\mu_j$ and $r_{ij}$ becomes in this case.}
+
+\subsubsection{Extension to Mahalanobis ("Quadratic") Distance}
+Suppose we alter the similarity score to a quadratic metric (known as the Mahalanobis distance) defined by a given and fixed symmetric positive-definite covariance matrix $\Sigma \in \mathbb{R}^{n \times n}$. The updated objective distortion model becomes:
+\begin{equation}
+J = \frac{1}{mk} \sum_{i=1}^{m} \sum_{j=1}^{k} r^{ij} (x^i - \mu^j)^T \Sigma (x^i - \mu^j)
+\end{equation}
+
+We must derive what both $\mu^j$ and $r^{ij}$ become under this quadratic transformation matrix.
+
+\paragraph{Derivation of the Mahalanobis Centroid $\mu^j$}
+We evaluate the partial gradient of the updated distortion metric with respect to $\mu^j$. Utilizing the matrix calculus identity $\frac{\partial}{\partial v} (u-v)^T \mathbf{M} (u-v) = -2\mathbf{M}(u-v)$ (valid when matrix $\mathbf{M}$ is symmetric):
+\begin{equation}
+\frac{\partial J}{\partial \mu^j} = -\frac{2}{mk} \sum_{i=1}^{m} r^{ij} \Sigma (x^i - \mu^j)
+\end{equation}
+
+Setting this matrix derivative equal to zero to optimize the location of the minimum:
+\begin{equation}
+-\frac{2}{mk} \sum_{i=1}^{m} r^{ij} \Sigma (x^i - \mu^j) = 0
+\end{equation}
+
+Because matrix multiplication operates as a linear transformation, the constant scaling matrix component $\Sigma$ can be cleanly factored outside the scope of the summation indices:
+\begin{equation}
+\Sigma \left( \sum_{i=1}^{m} r^{ij} (x^i - \mu^j) \right) = 0
+\end{equation}
+
+We are explicitly given that $\Sigma$ is a positive-definite matrix. By definition, all positive-definite matrices are non-singular and completely invertible, meaning the inverse matrix $\Sigma^{-1}$ is guaranteed to exist and its matrix null space contains only the trivial zero vector. Multiplying both sides by $\Sigma^{-1}$ yields:
+\begin{equation}
+\sum_{i=1}^{m} r^{ij}(x^i - \mu^j) = 0
+\end{equation}
+
+Distributing the terms and solving for the vector variable follows the identical linear sequence from the Euclidean baseline:
+\begin{equation}
+\sum_{i=1}^{m} r^{ij}x^i - \mu^j \sum_{i=1}^{m} r^{ij} = 0 \implies \mu^j = \frac{\sum_{i=1}^{m} r^{ij}x^i}{\sum_{i=1}^{m} r^{ij}}
+\end{equation}
+Hence, the mathematical formula for the optimal centroid prototype remains entirely unchanged under the Mahalanobis metric transformation.
+
+\paragraph{Derivation of the Mahalanobis Assignment $r^{ij}$}
+Following the identical independent cell decoupling logic used in the baseline model, when the centroids are held fixed, the global optimization sum is minimized when each discrete data point independently minimizes its personal distance footprint. Since the underlying distance space is scaled by $\Sigma$, the assignment selector targets the optimal quadratic coordinate:
+\begin{equation}
+r^{ij} = \begin{cases} 1 & \text{if } j = \arg\min_{c} (x^i - \mu^c)^T \Sigma (x^i - \mu^c) \\ 0 & \text{otherwise} \end{cases}
+\end{equation}
+
+\section{Image Compression Using Clustering}
+
+\subsection{Image Segmentation using Squared $L_2$ Norm}
+
+Use $k$-means with squared-$L_2$ norm as a metric for \texttt{artemisII.jpg} and \texttt{football.bmp} and also choose a third picture of your own to work on. Your chosen image should meet the following requirements:
+
+\begin{itemize}
+    \item \textbf{Full Color:} No black and white images.
+    \item \textbf{Dimensions:} Recommended size between $200 \times 150$ and $400 \times 300$ pixels. Larger images are acceptable assuming they meet structural runtime requirements, whereas smaller images are not acceptable.
+\end{itemize}
+
+Run your $k$-means implementation with these pictures, using several different cluster constraints: $K \in \{2, 5, 15, 25, 50\}$.
+
+{\textit{Comment:}} 
+Your algorithm will segment the image into $K$ discrete regions in the RGB color space. For each pixel in the input image, the algorithm returns a categorical label corresponding to its closest cluster assignment.
+
+Run your $k$-means implementation (with squared-$L_2$ norm) utilizing random initialization centroids. Due to the inherent nature of randomness, please execute the pipeline multiple times across different configurations and report only the single best seed discovered in terms of final reconstruction image quality. Please provide the following deliverables:
+\begin{itemize}
+    \item For every value of $K$ across all 3 target images, the final reconstructed image output.
+    \item The total time in seconds it takes to achieve convergence for every $K$ on each image.
+    \item The exact number of optimization iterations taken to reach convergence for every $K$ on each image.
+\end{itemize}
+
+\subsubsection{Squared $L_2$ Norm (Euclidean Distance) Segmentation Profile}
+
+The $L_2$ norm optimizes clustering by minimizing the squared Euclidean distance. This mathematically dictates that during each update step, cluster centers move to the \textbf{arithmetic mean} of all pixel vectors assigned to that cluster:
+
+\begin{equation}
+\mu_j = \frac{1}{|S_j|} \sum_{x_i \in S_j} x_i
+\end{equation}
+
+\paragraph{Consolidated Performance Matrix ($L_2$ Norm)}
+The performance profile below outlines the metrics for the winning initialization configurations extracted from our search matrix ($\{42, 106, 213, 56, 88\}$):
+
+\begin{table}[H]
+\centering
+\caption{Vectorized $K$-Means Execution Profiles via Squared $L_2$ Norm}%
+\label{tab:l2_metrics}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Target Image} & \textbf{Clusters ($K$)} & \textbf{Winning Seed} & \textbf{Convergence Time (s)} & \textbf{Iterations} \\
+\midrule
+\textbf{artemisII.jpg} & 2  & 42  & 0.2069 s & 26  \\
+                       & 5  & 56  & 0.7296 s & 75  \\
+                       & 15 & 88  & 3.2495 s & 204 \\
+                       & 25 & 213 & 5.8980 s & 268 \\
+                       & 50 & 42  & 3.5312 s & 95  \\
+\midrule
+\textbf{football.bmp}  & 2  & 42  & 0.1705 s & 23  \\
+                       & 5  & 213 & 0.3242 s & 34  \\
+                       & 15 & 88  & 1.9780 s & 134 \\
+                       & 25 & 42  & 5.3582 s & 255 \\
+                       & 50 & 88  & 10.1649 s& 300 \\
+\midrule
+\textbf{my\_custom\_photo.jpg} & 2  & 88  & 0.0172 s & 12  \\
+                               & 5  & 42  & 0.0785 s & 43  \\
+                               & 15 & 213 & 0.2420 s & 86  \\
+                               & 25 & 42  & 0.2290 s & 58  \\
+                               & 50 & 88  & 0.9601 s & 146 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Image Segmentation using Manhattan $L_1$ Norm}
+
+Now adjust your k-means implementation to use the Manhattan distance ($l_1$ norm) metric. Please provide all of the same above deliverables for all three images. Provide a comment on any
+differences you see in the results between using the L2 norm and L1 norm metrics.
+
+\subsubsection{Manhattan $L_1$ Norm (Manhattan Distance) Segmentation Profile}
+
+Switching to the Manhattan distance ($L_1$ norm) shifts the cost minimization framework. To minimize absolute variations, the update step calculates the component-wise \textbf{spatial median} for each feature channel rather than the mean:
+
+\begin{equation}
+\mu_j = \text{median}(S_j)
+\end{equation}
+
+\paragraph{Consolidated Performance Matrix ($L_1$ Norm)}
+
+\begin{table}[H]
+\centering
+\caption{Vectorized $K$-Means Execution Profiles via Manhattan $L_1$ Norm}\label{tab:l1_metrics}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Target Image} & \textbf{Clusters ($K$)} & \textbf{Winning Seed} & \textbf{Convergence Time (s)} & \textbf{Iterations} \\
+\midrule
+\textbf{artemisII.jpg} & 2  & 213 & 0.1813 s & 14 \\
+                       & 5  & 56  & 0.8402 s & 37 \\
+                       & 15 & 88  & 3.1173 s & 54 \\
+                       & 25 & 56  & 3.0372 s & 29 \\
+                       & 50 & 213 & 6.6007 s & 30 \\
+\midrule
+\textbf{football.bmp}  & 2  & 42  & 0.0380 s & 3  \\
+                       & 5  & 106 & 0.3056 s & 14 \\
+                       & 15 & 213 & 1.7330 s & 32 \\
+                       & 25 & 56  & 5.7138 s & 58 \\
+                       & 50 & 56  & 8.8366 s & 43 \\
+\midrule
+\textbf{my\_custom\_photo.jpg} & 2  & 42  & 0.0147 s & 6  \\
+                               & 5  & 42  & 0.0466 s & 11 \\
+                               & 15 & 213 & 0.7202 s & 68 \\
+                               & 25 & 42  & 0.3857 s & 23 \\
+                               & 50 & 42  & 0.5632 s & 17 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Deep-Dive Performance \& Quality Analysis}
+
+\subsubsection{Influence of Random Initialization Seeds on Reconstruction Quality}
+Standard $K$-means is notoriously sensitive to initial centroid placement because it updates via gradient descent, leaving it vulnerable to getting trapped in local minima. Our five-panel reporting plot, \textit{Initialization Quality Variance} (Panel 4 \& 5), uncovers distinct variance profiles across random seeds:
+
+\begin{figure}[H]
+    \centering
+    % Scales the 5-panel landscape chart flush to match your text column width limits
+    \includegraphics[width=\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Image Clustering/compressed_images/artemisII_comprehensive_analysis.png}
+    \caption{Comprehensive $K$-Means Analytics and Initialization Seed Performance Profiles ($L_2$ vs. $L_1$). Panels track (1) Execution Runtime, (2) Iteration Cycles, (3) Knee Curves, (4) $L_2$ Seed Variances, and (5) $L_1$ Seed Variances.}
+    \label{fig:kmeans_analytics}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{High Structural Consistency at Low $K$ ($K=2, 5$):} At low cluster constraints, the final distortion variance between the worst and best seeds is negligible. Because the color space is broadly partitioned into massive primitive blocks, almost all initializations converge to a virtually identical global optimum.
+    \item \textbf{Dispersal Divergence at Mid-to-High $K$ ($K=15, 25$):} When moving to detailed color palettes, seed performance branches apart significantly. A poor random initialization can trap centroids in isolated, sparse color spaces. This leaves dense color regions under-represented, leading to higher final distortion scores and visible color banding artifacts on the ship's hull. 
+    \item \textbf{Convergence Saturation ($K=50$):} At very high cluster sizes, the quality gap between seeds narrows again. This occurs because the pipeline places so many initial points throughout the RGB space that high-density color zones are guaranteed adequate coverage by sheer probability.
+\end{itemize}
+
+\subsubsection{Computational and Structural Tradeoffs: $L_2$ vs. $L_1$}
+\begin{itemize}
+    \item \textbf{The Complexity Paradox:} As shown in Panel 2 (Iteration Cycles), the $L_1$ norm requires far fewer iteration loops to reach convergence compared to the $L_2$ norm. However, as shown in Panel 1 (Execution Runtime), $L_2$ runs faster overall. This happens because the $L_2$ distance equation leverages optimized matrix dot products (\texttt{np.dot}). $L_1$, by contrast, requires sorting pixel arrays to calculate medians at every step, making each individual iteration more computationally demanding.
+    \item \textbf{Visual Representation:} The $L_2$ norm smooths color transitions across the spacecraft hull because its squared penalty term disincentivizes large color gaps. The $L_1$ metric is more robust to outliers, allowing it to preserve sharp, crisp edges between contrasting zones (such as text borders or panel lines) without causing them to bleed into background gradients.
+\end{itemize}
+
+\subsection{Determining the Optimal Value for $K$}
+Describe a method to find the best k. What is your best k?
+
+\subsubsection{The Elbow (Knee) Curvature Assessment}
+The optimal number of color regions is determined via the \textbf{Elbow Method}. By executing the pipeline across our operational range and mapping the objective metric against $K$ on a logarithmic axis (Panel 3: Knee Plot), we look for a distinct inflection point. This point represents where adding more color clusters yields diminishing returns relative to the increased file size and computation cost.
+
+\paragraph{Final Determination}
+Based on the generated performance reports, \textbf{$K = 15$} stands out as the optimal choice.
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Analysis:} Increasing the color budget from $K = 2$ to $K = 15$ yields massive drops in distortion, eliminating early pixelation and heavy color bleeding.
+    \item \textbf{Diminishing Returns:} Moving past $K = 15$ flatlines the distortion curve. This means the algorithm spends valuable processing time and memory adding redundant color shades that are nearly indistinguishable to the human eye. Thus, \textbf{$K = 15$} represents the ideal balance between structural compression and visual fidelity.
+\end{itemize}
+
+\section{Politcal Blogs DataSet}
+
+\subsection{Spectral Clustering using K-means}
+Use spectral clustering to find the k = 2, 5, 10, 30, 50 clusters in the network of political blogs (each node is a blog, and their edges are defined in the file edges.txt). Find majority labels in
+each cluster for different k values, respectively. For example, if there are k = 2 clusters, and their labels are \{0, 1, 1, 1\} and \{0, 0, 1\}, then the majority label for the first cluster is 1 and for the second
+cluster is 0. It is required you implement the algorithms yourself rather than calling from a package.
+Now compare the majority label with the individual labels in each cluster, and report the mismatch rate for each cluster, when k = 2, 5, 10, 30, 50. For instance, in the example above, the mismatch rate
+for the first cluster is 1/4 (only the first node differs from the majority), and the second cluster is 1/3.
+
+\subsubsection{Reporting the Mismatch Rates}
+The implementation using python code with genearte both the CSV tables and the plots in PNG format for the K values 2, 5, 10, 30 and 50. By observing the generated tabular data 
+and bar charts, the clustering behavior changes drastically as the number of clusters increases.
+
+\begin{itemize}
+    \item \textbf{For $K=2$:} The algorithm experiences a severe imbalance, yielding an overall mismatch rate of 47.9\%. It isolates exactly 2 nodes into the first cluster (\text{which has a 0\% error}) and dumps the remaining 1,222 nodes into a single, unseparated mass. Because this giant cluster contains nearly all Liberals and Conservatives mixed together, its individual mismatch rate sits at 48\%.
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Political Blogs/plots/mismatch_plot_K_2.png}
+    \end{center}
+    \begin{table}[htpb]
+    \centering
+    \caption{Cluster Metrics for $K=2$}
+    \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Cluster ID} & \textbf{Majority Index} & \textbf{Mismatch Rate} & \textbf{Cluster Size} \\
+    \hline
+    0 & 0 & 0.0000 & 2 \\
+    \hline
+    1 & 1 & 0.4800 & 1222 \\
+    \hline
+    \end{tabular}
+    \end{table}
+    \item \textbf{For $K=5$:} The algorithm successfully finds the true community boundaries, achieving the lowest overall mismatch rate of 4.7\%. It segments the network into large, highly pure blocks (e.g., a 514-node Liberal cluster with only a 2\% error\, and a 394-node Conservative cluster with a 2\% error), while isolating a few smaller, noisier subgroups.
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Political Blogs/plots/mismatch_plot_K_5.png}
+    \end{center}
+    \begin{table}[htpb]
+    \centering
+    \caption{Cluster Metrics for $K=5$}
+    \vspace{5pt}
+    \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Cluster ID} & \textbf{Majority Index} & \textbf{Mismatch Rate} & \textbf{Cluster Size} \\
+    \hline
+    1 & 0 & 0.0200 & 514 \\
+    \hline
+    2 & 0 & 0.1900 & 64 \\
+    \hline
+    3 & 1 & 0.0200 & 394 \\
+    \hline
+    4 & 1 & 0.0400 & 194 \\
+    \hline
+    0 & 1 & 0.3300 & 58 \\
+    \hline
+    \end{tabular}
+    \end{table}
+    \item \textbf{For $K=10, 30, 50$:} As $K$ increases, the overall mismatch rate slightly decreases and plateaus between 5.4\% and 6.6\%. The algorithm over-fragments the netweork into dozens of micro-clusters. Mechanically, the mismatch rate of these individual micro-clusters often drops to exactly 0\% becuase a cluster consisting of only 8 or 15 highly connected identical nodes has perfect purity. However, forced fragmentation introduces sorting errors in the remaining larger groups, preventing the overall network accuracy from improving.
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Political Blogs/plots/mismatch_plot_K_10.png}
+    \end{center}
+    \begin{table}[htpb]
+    \centering
+    \caption{Cluster Metrics for $K=10$}
+    \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Cluster ID} & \textbf{Majority Index} & \textbf{Mismatch Rate} & \textbf{Cluster Size} \\
+    \hline
+    7 & 0 & 0.0300 & 101 \\
+    \hline
+    9 & 0 & 0.0300 & 354 \\
+    \hline
+    2 & 0 & 0.0600 & 50 \\
+    \hline
+    1 & 0 & 0.2200 & 40 \\
+    \hline
+    6 & 0 & 0.2400 & 34 \\
+    \hline
+    5 & 0 & 0.3800 & 29 \\
+    \hline
+    8 & 1 & 0.0100 & 354 \\
+    \hline
+    3 & 1 & 0.0300 & 186 \\
+    \hline
+    4 & 1 & 0.1400 & 69 \\
+    \hline
+    0 & 1 & 0.4300 & 7 \\
+    \hline
+    \end{tabular}
+    \end{table}
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Political Blogs/plots/mismatch_plot_K_30.png}
+    \end{center}
+    \begin{table}[htpb]
+    \centering
+    \caption{Cluster Metrics for $K=30$}
+    \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Cluster ID} & \textbf{Majority Index} & \textbf{Mismatch Rate} & \textbf{Cluster Size} \\
+    \hline
+    2 & 0 & 0.0000 & 34 \\
+    \hline
+    11 & 0 & 0.0000 & 14 \\
+    \hline
+    15 & 0 & 0.0000 & 24 \\
+    \hline
+    17 & 0 & 0.0000 & 15 \\
+    \hline
+    25 & 0 & 0.0000 & 14 \\
+    \hline
+    7 & 0 & 0.0300 & 37 \\
+    \hline
+    22 & 0 & 0.0300 & 60 \\
+    \hline
+    29 & 0 & 0.0300 & 135 \\
+    \hline
+    9 & 0 & 0.0500 & 38 \\
+    \hline
+    14 & 0 & 0.0600 & 33 \\
+    \hline
+    20 & 0 & 0.0600 & 32 \\
+    \hline
+    23 & 0 & 0.0700 & 55 \\
+    \hline
+    26 & 0 & 0.1100 & 18 \\
+    \hline
+    1 & 0 & 0.2000 & 55 \\
+    \hline
+    5 & 0 & 0.3300 & 6 \\
+    \hline
+    8 & 1 & 0.0000 & 41 \\
+    \hline
+    21 & 1 & 0.0000 & 30 \\
+    \hline
+    27 & 1 & 0.0000 & 18 \\
+    \hline
+    3 & 1 & 0.0100 & 84 \\
+    \hline
+    19 & 1 & 0.0200 & 52 \\
+    \hline
+    0 & 1 & 0.0300 & 30 \\
+    \hline
+    12 & 1 & 0.0300 & 92 \\
+    \hline
+    4 & 1 & 0.0500 & 40 \\
+    \hline
+    10 & 1 & 0.0500 & 39 \\
+    \hline
+    28 & 1 & 0.0700 & 41 \\
+    \hline
+    24 & 1 & 0.0900 & 34 \\
+    \hline
+    16 & 1 & 0.1400 & 44 \\
+    \hline
+    18 & 1 & 0.1400 & 22 \\
+    \hline
+    6 & 1 & 0.1700 & 52 \\
+    \hline
+    13 & 1 & 0.4600 & 35 \\
+    \hline
+    \end{tabular}
+    \end{table}
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/gradescope_starter_code/Political Blogs/plots/mismatch_plot_K_50.png}
+    \end{center}
+    \begin{table}[htpb]
+    \centering
+    \caption{Cluster Metrics for $K=50$}
+    \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Cluster ID} & \textbf{Majority Index} & \textbf{Mismatch Rate} & \textbf{Cluster Size} \\
+    1 & 0 & 0.0000 & 37 \\
+    \hline
+    17 & 0 & 0.0000 & 24 \\
+    \hline
+    26 & 0 & 0.0000 & 8 \\
+    \hline
+    32 & 0 & 0.0000 & 31 \\
+    \hline
+    36 & 0 & 0.0000 & 40 \\
+    \hline
+    41 & 0 & 0.0000 & 10 \\
+    \hline
+    9 & 0 & 0.0200 & 62 \\
+    \hline
+    29 & 0 & 0.0200 & 40 \\
+    \hline
+    22 & 0 & 0.0300 & 30 \\
+    \hline
+    20 & 0 & 0.0400 & 54 \\
+    \hline
+    38 & 0 & 0.0400 & 26 \\
+    \hline
+    7 & 0 & 0.0500 & 21 \\
+    \hline
+    23 & 0 & 0.0500 & 20 \\
+    \hline
+    25 & 0 & 0.0500 & 37 \\
+    \hline
+    30 & 0 & 0.0700 & 14 \\
+    \hline
+    14 & 0 & 0.0800 & 13 \\
+    \hline
+    15 & 0 & 0.0800 & 38 \\
+    \hline
+    47 & 0 & 0.0800 & 26 \\
+    \hline
+    2 & 0 & 0.2100 & 14 \\
+    \hline
+    5 & 0 & 0.2500 & 4 \\
+    \hline
+    43 & 0 & 0.4400 & 25 \\
+    \hline
+    0 & 1 & 0.0000 & 22 \\
+    \hline
+    6 & 1 & 0.0000 & 27 \\
+    \hline
+    16 & 1 & 0.0000 & 36 \\
+    \hline
+    18 & 1 & 0.0000 & 19 \\
+    \hline
+    24 & 1 & 0.0000 & 14 \\
+    \hline
+    27 & 1 & 0.0000 & 8 \\
+    \hline
+    31 & 1 & 0.0000 & 19 \\
+    \hline
+    33 & 1 & 0.0000 & 42 \\
+    \hline
+    35 & 1 & 0.0000 & 46 \\
+    \hline
+    39 & 1 & 0.0000 & 24 \\
+    \hline
+    45 & 1 & 0.0000 & 13 \\
+    \hline
+    46 & 1 & 0.0000 & 17 \\
+    \hline
+    49 & 1 & 0.0000 & 14 \\
+    \hline
+    37 & 1 & 0.0300 & 31 \\
+    \hline
+    42 & 1 & 0.0300 & 35 \\
+    \hline
+    48 & 1 & 0.0300 & 35 \\
+    \hline
+    4 & 1 & 0.0500 & 22 \\
+    \hline
+    13 & 1 & 0.0500 & 21 \\
+    \hline
+    34 & 1 & 0.0600 & 17 \\
+    \hline
+    8 & 1 & 0.1100 & 9 \\
+    \hline
+    12 & 1 & 0.1100 & 18 \\
+    \hline
+    21 & 1 & 0.1400 & 14 \\
+    \hline
+    28 & 1 & 0.1600 & 19 \\
+    \hline
+    44 & 1 & 0.2100 & 29 \\
+    \hline
+    10 & 1 & 0.2200 & 18 \\
+    \hline
+    3 & 1 & 0.2400 & 21 \\
+    \hline
+    40 & 1 & 0.2400 & 17 \\
+    \hline
+    19 & 1 & 0.2900 & 7 \\
+    \hline
+    11 & 1 & 0.3100 & 36 \\
+    \hline
+    \end{tabular}
+    \end{table}
+\end{itemize}
+
+\subsection{K Tuning and Interpretation}
+Tune your k and find the number of clusters to achieve a reasonably small mismatch rate. Please explain how you tune k and what is the achieved mismatch rate. Please explain intuitively what
+this result tells about the network community structure.
+
+\subsubsection{Tuning $K$ and Interpreting the Results}
+Empirically, tuning the algorithm points to K=5 as the optimal number of clusters to achieve the lowest mismatch rate (4.7\%).
+
+While theoretical models often assume K=2 will perfectly slice this bipartite dataset, my actual Laplacian matrix and eigenvector projection demonstrated that 2 dimensions are insufficient. At K=2, the algorithm got trapped by a localized anomaly—identifying a tiny 2-node offshoot instead of the global macro-structure. By expanding the spectral space to K=5, the algorithm gains enough geometric coordinates to bypass those localized traps, allowing the K-Means clustering to easily draw boundaries around the massive political blocks.
+
+The fact that K=5 causes the error rate to plummet from 48\% down to under 5\% reveals two key insights about the political blogosphere:
+
+\begin{itemize}
+    \item \textbf{Extreme Polarization:} The network is fundamentally bipartite. Once the algorithm has enough dimensions to separate the data, the vast majority of the blogs naturally settle into massive, highly pure Liberal and Conservative echo chambers. Blogs within the same political party link to each other constantly, while cross-aisle links are exceptionally rare.
+    \item \textbf{Peripheral Subcommunities are present:} The network is not a perfect, uniform two-sided graph. It contains topological noise—smaller clusters of blogs (perhaps moderates, niche interest groups, or sparsely connected outliers) that do not fit perfectly into the dense core of either main party. Allowing K=5 lets the algorithm sweep these unique outliers into their own distinct structural bins, which keeps the main partisan clusters clean and pure.
+    \item \textbf{Seed Sensitivity:} Setting np.randon.seed(42) acts as an achor for my scripts random number generator. Though this provides reproducability it drives the most volatile step in my pipeline. Hence changing the number from 42 to something else might change the results in the following way. Before my algorithm can start organizing the political blogs, I blindly throw darts at the dataset to pick K initial starting points which is directly controlled by the seed. K-Means is a "greedy" algorithm and it only knows how to roll downhill to the nearest logical bounday and it cannot zoom to see the big picture. Because of this, its final answer is entirely dependent on where it starts. This seed dependency is almost certainly why my K=2 run resulted in a 48\% error rate, isolating just 2 nodes while grouping the other 1,222 together. If I had changed seed=42 to a different number, the inital darts would land elsewhere and I might see K=2 mismatch rate drop from 48\% down to 4\% simply because the new starting positions allowed the algorithm to find the true macro-structure of the Liberal and Conservative communities.
+\end{itemize}
+
+\section{Compression of AI model using K-means}
+This question ties clustering directly to vector quantization, which is a widely used real-world trick in compressing embedding-heavy ML models (e.g., recommender systems, NLP, vision).
+
+You are working on deploying a large-scale recommendation system. The model contains a massive embedding table for users and items, with millions of vectors. Storing all embeddings in 32-bit floating
+point format would require several hundred gigabytes — too large for production deployment. A popular approach to compress embedding tables is k-means vector quantization, where embeddings are clustered
+and only the cluster centroids plus cluster assignments are stored. You can use the Kmeans package from ‘sklearn.cluster‘ and numpy for this problem.
+
+\subsection{Data Preparation}
+You are provided with a dataset AImodel.npy of synthetic embeddings which can be read with numpy. Normalize the embeddings to unit length.
+
+Run k-means clustering with k = 256. Instead of storing each embedding directly, you will now store:
+\begin{itemize}
+    \item A centroid table of shape [256; d]
+    \item An index (0–255) for each embedding
+\end{itemize}
+
+Provide an explanation why normalization may be important to perform before clustering for compression. Additionally, compute and report the total memory usage in MB to 4 decimal places before and
+after the compression. Memory usage can be calculated as a combination of your embedding bytes and your index bytes. (assume float32 Embeddings = 4 bytes, index stored as uint8 = 1 byte).
+
+\subsubsection{Normalization and Memory Usage Calculation}
+\paragraph{Importance of Normalization}
+The semantic meaning of an embedding is often encoded in its direction rather than its magnitude. In many applications, such as natural language processing or recommender systems, the angle between vectors (which captures similarity) is more important than their length. If we were to apply k-means directly to unnormalized embeddings, the algorithm would cluster based on both magnitude and direction, which could lead to suboptimal clusters that do not capture the true semantic relationships.
+
+For unit-normalized vectors, the distance between two vectors is directly related to their cosine similarity. As the angle $\theta$ increases, the squared Euclidean distance $\|x-y\|^2$ increases, meaning the similarity decreases. Because the magnitude of the vectors is fixed to 1, the clustering will focus on grouping vectors that point in similar directions, which is often more meaningful for tasks like recommendation or language modeling. The relationship is derived from the equations below.
+
+Given that the squared euclidean norm can be expressed as  dot product of that vector with itself:
+\begin{equation}
+\lVert x - y \rVert^2 = (x - y) \cdot (x - y)
+\end{equation}
+we can expand this expression using the distributive property of the dot product:
+\begin{align}
+\lVert x - y \rVert^2 &= (x \cdot x) - (x \cdot y) - (y \cdot x) + (y \cdot y) \\
+\intertext{Because the dot product is commutative ($x \cdot y = y \cdot x$), we can combine the middle terms. Remember that $x \cdot x = \lVert x \rVert^2$ and $y \cdot y = \lVert y \rVert^2$, we get:}
+&= \lVert x \rVert^2 - 2(x \cdot y) + \lVert y \rVert^2 \\
+\intertext{Now we apply the two defining properties of \textbf{unit vectors}:}
+\intertext{\textbf{Unit Length:} Because they are normalized, their lengths are 1 ($\lVert x \rVert = 1$ and $\lVert y \rVert = 1$). This means $\lVert x \rVert^2 = 1$ and $\lVert y \rVert^2 = 1$.}
+\intertext{\textbf{Geometric Dot Product:} By definition, the dot product is $x \cdot y = \lVert x \rVert \lVert y \rVert \cos(\theta)$. Substituting 1 for the lengths simplifies this to $x \cdot y = \cos(\theta)$.}
+\intertext{Substituting these three values back into our expanded equation yields:}
+&= 1 - 2\cos(\theta) + 1 \nonumber \\ % \nonumber skips numbering this intermediate step
+\intertext{Combining the constants gives our final identity:}
+&= 2 - 2\cos(\theta)
+\end{align}
+
+\paragraph{Memory Usage Calculation}
+Based on the provided dataset ($1000$ samples, $32$ dimensions) and the specified bit formats:
+\begin{itemize}
+    \item \textbf{Original Memory:} $1000 \text{ vectors} \times 32 \text{ dims} \times 4 \text{ bytes (float32)} = 128,000 \text{ bytes}$
+    \item \textbf{Original Size:} 0.1221 MB
+    \item \textbf{Compressed Memory ($k=256$):}
+    \begin{itemize}
+        \item Centroid Table: $256 \times 32 \times 4 \text{ bytes} = 32,768 \text{ bytes}$
+        \item Indices: $1000 \times 1 \text{ byte (uint8)} = 1,000 \text{ bytes}$
+        \item Total Compressed = $33,768 \text{ bytes}$
+    \end{itemize}
+    \item \textbf{Compressed Size:} 0.0322 MB
+\end{itemize}
+
+\subsection{Reconstruction Error}
+Given the index assignments produced by $k$-means, we replace each original embedding vector with its corresponding cluster centroid. Define the cosine similarity between any two vectors $\mathbf{a}$ and $\mathbf{b}$ as:
+\begin{equation}
+\text{cosine\_similarity}(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a} \cdot \mathbf{b}}{\lVert\mathbf{a}\rVert_2 \lVert\mathbf{b}\rVert_2}
+\end{equation}
+where $\cdot$ denotes the standard vector dot product and $\lVert \cdot \rVert_2$ denotes the Euclidean ($L_2$) norm. Compute and report the average cosine similarity between all pairs of original and reconstructed embeddings across the entire dataset of size $n$:
+\begin{equation}
+\text{Average Cosine Similarity} = \frac{1}{n} \sum_{i=1}^{n} \text{cosine\_similarity}(\mathbf{x}_i, \mathbf{\hat{x}}_i)
+\end{equation}
+where $\mathbf{x}_i$ represents the original embedding vector and $\mathbf{\hat{x}}_i$ represents its quantized (centroid) version. \\
+\textit{Hint:} In NumPy, this can be computed as the dot product divided by the product of norms for each pair of vectors. \\
+Interpret whether the compression preservers semantic similarity well, and explain what your specific caculated average cosine similarity value represents in the context of model compression.
+
+\subsubsection{Calculated Average Cosine Similarity}
+Using the centroids to reconstruct the embeddings yields an Average Cosine Similarity of 0.9242.
+
+\subsubsection{Interpretation}
+This high value indicates that the compression \textbf{preserves semantic similarity extremely well}. In the context of model compression, an average cosine similarity of $\sim 0.92$ represents that the angle between the original specific embedding and its generalized cluster centroid is very small. Because downstream tasks (like computing a user-item match score) rely on the dot product/cosine similarity between vectors, a score close to 1.0 ensures that the relative ranking of recommendations will remain largely unchanged despite the model taking up significantly less disk space.
+
+\subsection{Model Selection \& Discussion}
+Try different values of k (64, 128, 256, 512) and compare compression ratio vs. reconstruction quality. Provide plots showing how the compression ratio and
+the reconstruction quality changes with K. Additionally, Discuss the trade-off between model size and accuracy.
+
+\subsubsection{Model Selection and Trade-off Discussion}
+By testing different values of $k$, we can observe how the parameter impacts the trade-off. (\textit{Note: For $k > 256$, the index array requires 2 bytes (uint16) per embedding instead of 1}). \\
+\begin{center}
+    \includegraphics[width=0.7\textwidth]{ISYE6740_Summer_2026_HW1/data/CompressionRaitio_ReconstructionQuality_vs_K.png}
+\end{center}
+\begin{table}[htpb]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{K (Clusters)} & \textbf{Original (MB)} & \textbf{Compressed (MB)} & \textbf{Compression Ratio} & \textbf{Avg Cosine Similarity} \\
+\hline
+64 & 0.1221 & 0.0087 & 13.93x & 0.8877 \\
+\hline
+128 & 0.1221 & 0.0166 & 7.36x & 0.9017 \\
+\hline
+256 & 0.1221 & 0.0322 & 3.79x & 0.9242 \\
+\hline
+512 & 0.1221 & 0.0644 & 1.90x & 0.9586 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Discussing the Trade-off} \\
+The relationship between $k$ and performance exhibits diminishing returns.
+
+\begin{itemize}
+    \item \textbf{Model Size (Storage):} As $k$ increases, the size of the centroid lookup table grows. Furthermore, crossing the 256 threshold ($k=512$) doubles the index memory overhead because an 8-bit integer can no longer hold the index IDs. This causes the compression ratio to drop steeply from 3.79x down to 1.90x.
+    \item \textbf{Accuracy (Reconstruction):} Higher values of $k$ naturally yield better reconstruction quality because each centroid is responsible for a smaller, tighter radius of vectors.
+    \item \textbf{Conclusion:} $k=256$ is often the ``sweet spot'' in production because it perfectly maximizes the 1-byte integer limit, yielding an excellent compression ratio ($\sim 4$x) while maintaining a highly reliable similarity score ($> 0.92$).
+\end{itemize}
+
+
+
+\end{document}
