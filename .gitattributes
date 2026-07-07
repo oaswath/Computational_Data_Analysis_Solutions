@@ -1,5 +1,7 @@
 /HomeWork2/Solutions/aoruganti8_HW2.zip filter=lfs diff=lfs merge=lfs -text
 /HomeWork3/Solutions/aoruganti8_HW3/data/data.dat filter=lfs diff=lfs merge=lfs -text
+/Project/Solution/Data/plantnet_300K/plantnet300K_metadata.json filter=lfs diff=lfs merge=lfs -text
+/Project/Solution/Data/plantnet_300K/plantnet300K_metadata_formatted.json filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
 *.mat filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text

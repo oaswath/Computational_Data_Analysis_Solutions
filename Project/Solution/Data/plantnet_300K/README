@@ -1,0 +1,11 @@
+
+Images are stored in the three folders images/test, images/train and images/val. 
+
+All images belonging to the same class (i.e. species) are grouped in the same subfolder with the subfolder name being the species identifier. The correspondance between species identifiers and species scientific names is provided in the file "plantnet300K_species_id_2_name.json". The first part of a species name corresponds to the genus, e.g. the genus of the species "Lactuca virosa L." is "Lactuca". 
+
+The file plantnet_300K_metadata.json contains additional metadata of each image including the license (cc-by-sa) and the author name. The cc-by-sa licence requires that you cite the author name for any use of any image of the dataset. 
+
+The file plantnet_300K_metadata.json contains a field called "split" that specifies for each image whether it is part of the training set, the validation set or the test set. 
+
+
+
