@@ -1,0 +1,235 @@
+\documentclass[twoside, 10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{tabularx}
+\geometry{margin=1in}
+\usepackage{hyperref}
+\usepackage{listings}
+
+% Page geometry
+% (duplicate geometry statement removed)
+
+% Color definitions
+\definecolor{primaryblue}{RGB}{26, 54, 93}
+\definecolor{darkgrey}{RGB}{45, 55, 72}
+
+% Global paragraph settings
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+\raggedbottom
+
+% --- FIXED NUMBERING MACROS ---
+\renewcommand{\thesubsection}{\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}} 
+
+% Define the paragraph macro to act as your 3-digit sub-subsubsection (2.4.1)
+\renewcommand{\theparagraph}{\thesubsubsection.\arabic{paragraph}} 
+
+% Force paragraph headings to have their own standalone line instead of running inline
+\makeatletter
+\renewcommand{\paragraph}{\@startsection{paragraph}{4}{0pt}%
+    {-3.25ex plus -1ex minus -0.2ex}%
+    {1.5ex plus 0.2ex}%
+    {\normalfont\normalsize\bfseries}}
+\makeatother
+
+\usepackage{titlesec}
+
+% Ensure LaTeX numbers headings down to the paragraph level
+\setcounter{secnumdepth}{4}
+% ------------------------------
+
+% Modify subsection: keep default size (\large) and alignment, but force normal font weight
+\titleformat{\subsection}
+  {\normalfont\large\fontseries{m}\selectfont} % Medium weight instead of bold
+  {\thesubsection.}                            % Format for the number (e.g., 1.)
+  {0.5em}                                      % Spacing between number and text
+  {}
+
+  % The format is: \titlespacing*{command}{left spacing}{space before}{space after}
+\titlespacing*{\section}{0pt}{2ex plus 1ex minus .2ex}{0.5ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{1ex plus 1ex minus .2ex}{0.5ex plus .2ex}
+\titlespacing*{\subsubsection}{0pt}{0.5ex plus 0.5ex minus .2ex}{0.2ex plus .2ex}
+
+% Setup for Python code formatting
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{green!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    breaklines=true,
+    frame=single,
+    showstringspaces=false
+}
+
+\begin{document}
+
+\begin{titlepage}
+\clearpage\thispagestyle{empty}
+\centering
+\vspace{1cm}
+		
+\rule{\linewidth}{1mm} \\[0.5cm]
+{ \Large \bfseries ISyE 6740 - Spring 2021\\[0.2cm]Project Proposal or Final Report}\\[0.5cm]
+\rule{\linewidth}{1mm} \\[1cm]
+	
+\begin{tabular}{@{}l p{7.5cm}@{}}
+    \textbf{Team Member Names:} & Bakiye Hilal Khaniyev, Yussif Salama \& Aswath Oruganti \\[12pt]
+    \textbf{Project Title:} & Open-Set Recognition of Plant Species: Detecting Unfamiliar Flora for Biodiversity Screening \\[12pt]
+\end{tabular} 
+	
+\pagebreak
+
+\end{titlepage}
+
+\section{Problem Statement}
+This report details the progress made toward developing a robust classification and open-set recognition system for plant species identification. The primary objective is to build a system capable of accurately classifying known plant species while successfully flagging unfamiliar taxa as ``unknown,'' a critical requirement for integrating field data into larger ecological tracking databases. 
+To date, the data curation pipeline has been finalized, and a baseline ResNet-18 model has been established. We have successfully fine-tuned the model for 5 epochs on the ``Known'' species subset and conducted a comparative analysis of the latent embedding space (Pre-trained vs. Fine-tuned) using Principal Component Analysis (PCA) and Mutual Information (MI) metrics.
+
+\section{Data Source}
+A robust data curation pipeline was implemented via the \texttt{PlantNetDataCurator} class and custom synchronization scripts to address the severe class imbalances inherent in the PlantNet-300K dataset.
+\subsection{Metadata Curation \& Disk Syncing}
+The dataset is initially filtered using the \texttt{PlantNetDataCurator} class, which parses the JSON metadata to enforce strict support boundaries (e.g., minimum 150 images, maximum 300 images per species). This prevents dominant classes from overwhelming the gradient during training. 
+However, because metadata does not always match local disk contents, we implemented a physical sync function:
+
+\begin{lstlisting}[language=Python, caption=Disk Syncing Logic]
+def sync_dataframe_with_disk(df, base_image_dir, max_per_class=300):
+    # Iterates through the curated dataframe and verifies the physical .jpg exists
+    # If it exists, it replaces the metadata ID with the actual_filename
+    ...
+    # Re-balancing logic caps only the 'train' split at max_per_class
+    n_samples = min(len(train_df), max_per_class)
+    balanced_chunks.append(train_df.sample(n=n_samples, random_state=42))
+\end{lstlisting}
+
+\textbf{Why this matters:} This code ensures our PyTorch \texttt{DataLoader} never crashes due to a \texttt{FileNotFoundError}, and guarantees our training data remains perfectly balanced across all known classes.
+
+Once curated, the data is strictly divided into two pools:
+\begin{itemize}
+    \item \textbf{Known Species (80\%):} Used for standard training and validation.
+    \item \textbf{Unknown Species (20\%):} Strictly held out during training to simulate true ``novel'' encounters during the evaluation phase.
+\end{itemize}
+
+\section{Methodology}
+The project utilizes a deep Convolutional Neural Network (CNN) to extract high-dimensional representations of the botanical images. 
+
+\subsection{ResNet-18 and Feature Hooks}
+Instead of just grabbing the final classification prediction, we need the deep mathematical representation (embeddings) of the image to perform Open-Set Recognition. We achieve this by subclassing ResNet-18 and attaching a ``hook'' to the pooling layer:
+
+\begin{lstlisting}[language=Python, caption=ResNet-18 with Forward Hook]
+class OpenSetResNet(nn.Module):
+    def __init__(self, num_known_classes):
+        super(OpenSetResNet, self).__init__()
+        self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        in_features = self.backbone.fc.in_features
+        self.backbone.fc = nn.Linear(in_features, num_known_classes)
+        self.embeddings = None
+        self._register_hook()
+
+    def _register_hook(self):
+        # Captures the 512-D vector just before the final classification layer
+        def hook(module, input, output):
+            self.embeddings = output.squeeze()
+        self.backbone.avgpool.register_forward_hook(hook)
+\end{lstlisting}
+
+\textbf{Why this matters:} The \texttt{register\_forward\_hook} allows us to intercept the 512-dimensional vector that represents the ``essence'' of the plant. We use these vectors for our PCA and Mutual Information analysis.
+
+\subsection{Checkpointing}
+To optimize our workflow, we implemented a save/load checkpointing system in the execution block:
+
+\begin{lstlisting}[language=Python, caption=Checkpoint Save and Load]
+weights_path = 'resnet18_finetuned_knowns.pth'
+if os.path.exists(weights_path):
+    pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
+    pretrained_model.eval() 
+else:
+    trained_model = train_model(...)
+    torch.save(trained_model.state_dict(), weights_path)
+\end{lstlisting}
+
+\textbf{Why this matters:} This prevents the need to retrain the 5-epoch model every time we want to adjust our visualization or analysis code, saving significant compute time.
+
+\section{Results \& Latent Space Analysis}
+To evaluate whether the model is learning to distinguish between ``Known'' and ``Unknown'' species without explicit supervision on the unknowns, we extracted and analyzed the 512-D embeddings of a mixed test set containing both pools.
+
+\subsection{Principal Component Analysis (PCA) Projection}
+PCA was utilized to compress the 512-dimensional embeddings into a 2D space for visual inspection of class separation.
+
+\textbf{Pre-Trained Baseline:} Using raw ImageNet weights, the PCA projection showed significant overlap. The model relied on generic visual features (e.g., basic shapes, greens/browns), which were insufficient for separating familiar flora from novel species.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/PreTrained_ResNet18_Embedding_PCA_Projection.png}
+    \caption{PCA Projection of Embeddings - Pre-Trained ResNet-18 Baseline}
+\end{figure}
+
+\textbf{After 5 Epochs:} The fine-tuned embeddings began to cluster more distinctly based on the specific morphological traits of the known classes. While the decision boundary is not perfectly linear, the manifold topology indicates the model is actively learning domain-specific botanical features.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/5Epoch_plantNet_Trained_ResNet18_Embedding_PCA_Projection.png}
+    \caption{PCA Projection of Embeddings - After 5 Epochs of Fine-Tuning}
+\end{figure}
+
+\subsection{Mutual Information (MI) Scores}
+We calculated the Mutual Information between each of the 512 embedding dimensions and the binary target of ``Familiarity'' (1 for Known, 0 for Unknown).
+
+\textbf{Pre-Trained Baseline:} The MI scores were relatively low and evenly distributed, indicating no specific feature maps were tuned to detect botanical novelty.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/PreTrained_ResNet18_Embedding_MIScore.png}
+    \caption{Mutual Information Scores - Pre-Trained ResNet-18 Baseline}
+\end{figure}
+
+\textbf{After 5 Epochs:} A sharp hierarchy emerged in the MI scores. Specific dimensions within the 512-D vector developed highly significant correlations with the Known/Unknown label. This proves the fine-tuning process forced certain neural pathways to become highly specialized in recognizing the specific characteristics of our curated dataset.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/5Epoch_plantNet_Trained_ResNet18_Embedding_MIScore.png}
+    \caption{Mutual Information Scores - After 5 Epochs of Fine-Tuning}
+\end{figure}
+
+\subsection{Activation Fingerprints}
+We reshaped the 512-D vectors into 16x32 grids to visualize the activation intensity of the neural network.
+
+\textbf{Pre-Trained Baseline:} Activations were diffuse and ``fuzzy.''
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/PreTrained_ResNet18_Embedding_Activation_FingerPrints_First_16Images.png}
+    \caption{Activation Fingerprints - Pre-Trained ResNet-18 Baseline}
+\end{figure}
+
+\textbf{After 5 Epochs:} The 5-epoch model displays much higher contrast and sparser, more decisive activations. This confirms the network is making more confident and specific feature extractions rather than relying on generalized ImageNet patterns.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{/Users/aswathoruganti/OMSA-GTech/Computational_Data_Analysis/Project/Solution/5Epoch_plantNet_Trained_ResNet18_Embedding_Activation_FingerPrints_First_16Images.png}
+    \caption{Activation Fingerprints - After 5 Epochs of Fine-Tuning}
+\end{figure}
+
+\section{Next Steps \& Project Roadmap}
+The foundation for the open-set recognition pipeline is fully functional. To complete the objectives outlined in the project proposal, the following steps will be executed next:
+
+\begin{enumerate}
+    \item \textbf{Algorithmic Thresholding:} We will implement statistical methods (e.g., Softmax thresholding, OpenMax, or Mahalanobis distance) on top of the current embeddings to establish a definitive quantitative threshold for rejecting an image as ``Unknown.''
+    \item \textbf{Extended Training:} The current model was evaluated after 5 epochs. Extending training with a dynamic learning rate scheduler is expected to further tighten the PCA clusters and improve overall accuracy.
+    \item \textbf{Architecture Expansion (Optional):} Integrating \texttt{EfficientNet-B0} alongside ResNet-18 will allow us to compare computational efficiency versus accuracy, which is highly relevant for integrating these models into real-world database tracking applications.
+\end{enumerate}
+
+\end{document}
