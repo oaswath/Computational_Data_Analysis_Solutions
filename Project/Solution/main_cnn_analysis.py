@@ -316,6 +316,8 @@ if __name__ == "__main__":
     # 1. Initialize the Curator and fetch the DataFrame
     print("--- Step 1: Curating Data (from metadata) ---")
     curator = PlantNetDataCurator(
+    
+       
         metadata_path='Data/plantnet_300K/plantnet300K_metadata_formatted.json',
         species_map_path='Data/plantnet_300K/plantnet300K_species_id_2_name.json',
         min_support=150,
@@ -416,7 +418,7 @@ if __name__ == "__main__":
         torch.save(trained_model.state_dict(), weights_path)
         print(f"Model weights saved to '{weights_path}'")
     # ============================================================
-    ''''
+    '''
     # Execute Training
     epochs = 5  # You can increase this for better performance
     trained_model = train_model(pretrained_model, train_loader, val_loader, criterion, optimizer, num_epochs=epochs, device=device)
@@ -425,27 +427,113 @@ if __name__ == "__main__":
     torch.save(trained_model.state_dict(), 'resnet18_finetuned_knowns.pth')
     print("Model weights saved to 'resnet18_finetuned_knowns.pth'")
     '''
-    # Safely sample based on the remaining valid files
-    sample_size = min(2000, len(df_known), len(df_unknown))
-    test_df = pd.concat([df_known.sample(sample_size, random_state=42), df_unknown.sample(sample_size, random_state=42)])
-    
-    test_dataset = PlantNetDataset(test_df, image_dir=base_image_directory, transform=eval_transform)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    # ==============================================================
+    # --- Extract and save embeddings from known training images ---
+    # ==============================================================
+
+    print("\n--- Extracting Known Training Embeddings ---")
+
+    train_embedding_dataset = PlantNetDataset(
+        train_df,
+        image_dir=base_image_directory,
+        label_map=known_label_map,
+        transform=eval_transform
+    )
+
+    train_embedding_loader = DataLoader(
+        train_embedding_dataset,
+        batch_size=64,
+        shuffle=False
+    )
+
+    train_embeddings, train_class_labels = extract_embeddings(
+        trained_model,
+        train_embedding_loader,
+        device
+    )
+
+    output_dir = "open_set_outputs"
+    os.makedirs(output_dir, exist_ok=True)
+
+    np.savez_compressed(
+        os.path.join(output_dir, "known_train_embeddings.npz"),
+        embeddings=train_embeddings,
+        class_labels=train_class_labels,
+        species_name=train_df["species_name"].to_numpy()
+    )
+
+    print(
+        "Saved known training embeddings to:",
+        os.path.join(output_dir, "known_train_embeddings.npz")
+    )
+
     
    # ==============================================================
-    # ---  EXTRACT FEATURES AND EVALUATE OPEN-SET ON TRIANED MODEL wih OPEN300K -----------
+    # --- Extract features and evaluate the trained model on the open-set test data ---
     # ==============================================================
     print(f"\n--- Step 5: Extracting Features using {device} ---")
     
     # Safely sample based on the remaining valid files
-    sample_size = min(2000, len(df_known), len(df_unknown))
-    test_df = pd.concat([df_known.sample(sample_size, random_state=42), df_unknown.sample(sample_size, random_state=42)])
+    #sample_size = min(2000, len(df_known), len(df_unknown))
+    #test_df = pd.concat([df_known.sample(sample_size, random_state=42), df_unknown.sample(sample_size, random_state=42)]) 
+    # Use only held-out test images for open-set evaluation
+    known_test_df = df_known[df_known["split"] == "test"].copy()
+    unknown_test_df = df_unknown[df_unknown["split"] == "test"].copy()
+
+    sample_size = min(
+        2000,
+        len(known_test_df),
+        len(unknown_test_df)
+    )
+
+    known_test_sample = known_test_df.sample(
+        sample_size,
+        random_state=42
+    )
+
+    unknown_test_sample = unknown_test_df.sample(
+        sample_size,
+        random_state=42
+    )
+
+    test_df = pd.concat(
+        [known_test_sample, unknown_test_sample],
+        ignore_index=True
+    )
+
+    test_df = test_df.sample(
+        frac=1,
+        random_state=42
+    ).reset_index(drop=True)
+
+    print("\nOpen-set test composition:")
+    print(test_df["is_known"].value_counts())
+    print("Known test species:", known_test_sample["species_name"].nunique())
+    print("Unknown test species:", unknown_test_sample["species_name"].nunique())
+    
     
     # Pass the known_label_map so the dataset doesn't crash when encountering an unknown species
     test_dataset = PlantNetDataset(test_df, image_dir=base_image_directory, label_map=known_label_map, transform=eval_transform)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     
     embeddings_resnet18, binary_labels_resnet18 = extract_embeddings(trained_model, test_loader, device)
+
+    output_dir = "open_set_outputs"
+    os.makedirs(output_dir, exist_ok=True)
+
+    np.savez_compressed(
+        os.path.join(output_dir, "open_set_test_embeddings.npz"),
+        embeddings=embeddings_resnet18,
+        class_labels=binary_labels_resnet18,
+        is_known=test_df["is_known"].to_numpy(),
+        species_name=test_df["species_name"].to_numpy()
+    )
+
+    print(
+        "Saved open-set test embeddings to:",
+        os.path.join(output_dir, "open_set_test_embeddings.npz")
+    )
     
     print("\n--- Step 6: Running Analysis ---")
     analyze_mutual_information(embeddings_resnet18, test_df['is_known'].values)
