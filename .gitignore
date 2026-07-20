@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# PlantNet-300K dataset (huge; download separately, keep out of git)
+Project/plantnet_300K.zip
+Project/Solution/Data/plantnet_300K/images/
+
+# Generated ROC figure is regenerated on each run (kept out; npz are committed via LFS)
+Project/Solution/open_set_outputs/roc_curves.png
