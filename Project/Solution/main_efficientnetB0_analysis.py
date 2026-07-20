@@ -344,22 +344,42 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(pretrained_model.parameters(), lr=1e-4)
     
     # ==============================================================
-    # --- CHECKPOINT LOGIC --------
+    # --- ENHANCED CHECKPOINT LOGIC (RESUME TRAINING) --------
     # ==============================================================
-    weights_path = 'efficientnet_b0_finetuned_knowns.pth'
+    weights_path_5_epochs = 'efficientnet_b0_finetuned_knowns.pth'
+    weights_path_10_epochs = 'efficientnet_b0_finetuned_knowns_10epochs.pth'
     
-    if os.path.exists(weights_path):
-        print(f"\n--- Loading pre-trained weights from {weights_path} ---")
-        pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
+    # 1. Check if we already finished the full 10 epochs
+    if os.path.exists(weights_path_10_epochs):
+        print(f"\n--- Loading fully trained weights from {weights_path_10_epochs} ---")
+        pretrained_model.load_state_dict(torch.load(weights_path_10_epochs, map_location=device))
         pretrained_model.eval() 
         trained_model = pretrained_model 
         print("Skipping training phase and proceeding to evaluation.")
+        
+    # 2. Check if we have the 5-epoch save file, and RESUME training
+    elif os.path.exists(weights_path_5_epochs):
+        print(f"\n--- Loading pre-trained weights from {weights_path_5_epochs} ---")
+        # Load the progress from the first 5 epochs
+        pretrained_model.load_state_dict(torch.load(weights_path_5_epochs, map_location=device))
+        
+        print("\n--- Resuming training for 5 additional epochs... ---")
+        additional_epochs = 5 
+        # Pass the pre-loaded model back into the training loop
+        trained_model = train_model(pretrained_model, train_loader, val_loader, criterion, optimizer, num_epochs=additional_epochs, device=device)
+        
+        # Save the new 10-epoch model so we don't have to do it again
+        torch.save(trained_model.state_dict(), weights_path_10_epochs)
+        print(f"Model weights saved to '{weights_path_10_epochs}'")
+        
+    # 3. If neither exist, start completely from scratch
     else:
-        print("\n--- No pre-trained weights found. Starting training... ---")
+        print("\n--- No pre-trained weights found. Starting training from scratch... ---")
         epochs = 5 
         trained_model = train_model(pretrained_model, train_loader, val_loader, criterion, optimizer, num_epochs=epochs, device=device)
-        torch.save(trained_model.state_dict(), weights_path)
-        print(f"Model weights saved to '{weights_path}'")
+        torch.save(trained_model.state_dict(), weights_path_5_epochs)
+        print(f"Model weights saved to '{weights_path_5_epochs}'")
+    # ==============================================================
     # ==============================================================
 
     print(f"\n--- Step 7: Extracting Fine-Tuned Features using {device} ---")
