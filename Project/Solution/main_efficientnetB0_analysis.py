@@ -308,8 +308,17 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    sample_size = min(2000, len(df_known), len(df_unknown))
-    test_df = pd.concat([df_known.sample(sample_size, random_state=42), df_unknown.sample(sample_size, random_state=42)])
+
+    known_test_df = df_known[df_known['split'] == 'test'].copy()
+    unknown_test_df = df_unknown[df_unknown['split'] == 'test'].copy()
+
+    sample_size = min(2000, len(known_test_df), len(unknown_test_df))
+
+    test_df = pd.concat([known_test_df.sample(n=sample_size, random_state=42),unknown_test_df.sample(n=sample_size, random_state=42)], ignore_index=True)
+
+    print(f"Open-set held-out test set: "
+          f"{sample_size} known and {sample_size} unknown images."
+        )
     
     test_dataset = PlantNetDataset(test_df, image_dir=base_image_directory, label_map=known_label_map, transform=eval_transform)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
@@ -390,6 +399,47 @@ if __name__ == "__main__":
     
     embeddings_effnet, binary_labels_effnet = extract_embeddings(trained_model, test_loader, device)
     
+    # Save embeddings for downstream open-set recognition experiments
+    output_dir = "open_set_outputs"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Known training embeddings
+    known_train_dataset = PlantNetDataset(
+        train_df,
+        image_dir=base_image_directory,
+        label_map=known_label_map,
+        transform=eval_transform
+    )
+
+    known_train_loader = DataLoader(
+        known_train_dataset,
+        batch_size=64,
+        shuffle=False
+    )
+
+    known_train_embeddings, known_train_labels = extract_embeddings(
+        trained_model,
+        known_train_loader,
+        device
+    )
+
+    np.savez_compressed(
+        os.path.join(output_dir, "known_train_embeddings_effnet.npz"),
+        embeddings=known_train_embeddings,
+        class_labels=known_train_labels
+    )
+
+    # Open-set test embeddings
+    np.savez_compressed(
+        os.path.join(output_dir, "open_set_test_embeddings_effnet.npz"),
+        embeddings=embeddings_effnet,
+        class_labels=binary_labels_effnet,
+        is_known=test_df["is_known"].to_numpy(),
+        species_name=test_df["species_name"].to_numpy()
+    )
+
+    print(f"Saved EfficientNet embeddings to '{output_dir}'")
+
     print("\n--- Step 8: Running Post-Training Analysis ---")
     analyze_mutual_information(embeddings_effnet, test_df['is_known'].values)
     plot_pca_embeddings(embeddings_effnet, test_df['is_known'].values)
