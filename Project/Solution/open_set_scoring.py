@@ -1,16 +1,17 @@
 """
 Open-set recognition scoring for the PlantNet biodiversity screening project.
 
-Consumes the embedding files that ``main_cnn_analysis.py`` writes into
-``open_set_outputs/`` plus the classifier head in ``resnet18_finetuned_knowns.pth``,
-then builds several "is this an unfamiliar species?" scorers (MSP, Energy,
-Mahalanobis, kNN, One-Class SVM, Isolation Forest) and compares them. The CNN is
-never retrained.
+Consumes the embedding files written by ``generate_open_set_embeddings.py`` into
+``open_set_outputs/`` plus the matching classifier head (.pth), then builds
+several "is this an unfamiliar species?" scorers (MSP, Energy, Mahalanobis, kNN,
+One-Class SVM, Isolation Forest) and compares them. The CNN is never retrained.
+Both backbones are supported via ``--model`` (resnet18 or efficientnet); each
+preset points at the right weights/embeddings/output files.
 
 Convention: y_true = 1 - is_known, so 1 == "unfamiliar" is the positive class,
 and every scorer is oriented so a HIGHER score means MORE unfamiliar.
 
-Run: python open_set_scoring.py
+Run: python open_set_scoring.py [--model resnet18|efficientnet]
 """
 
 import argparse
@@ -40,22 +41,40 @@ TARGET_TPR = 0.95
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "open_set_outputs")
-DEFAULT_WEIGHTS_PATH = os.path.join(SCRIPT_DIR, "resnet18_finetuned_knowns.pth")
+
+# Per-model defaults so `--model efficientnet` picks the right files/weights.
+# resnet18 keeps the original (un-suffixed) filenames; efficientnet is suffixed.
+MODEL_PRESETS = {
+    "resnet18": {
+        "weights": "resnet18_finetuned_knowns.pth",
+        "train_file": "known_train_embeddings.npz",
+        "test_file": "open_set_test_embeddings.npz",
+        "roc_file": "roc_curves.png",
+    },
+    "efficientnet": {
+        # Canonical _effnet filenames match the merged EfficientNet pipeline
+        # (main_efficientnetB0_analysis.py) so both consume the same embeddings.
+        "weights": "efficientnet_b0_finetuned_knowns_10epochs.pth",
+        "train_file": "known_train_embeddings_effnet.npz",
+        "test_file": "open_set_test_embeddings_effnet.npz",
+        "roc_file": "roc_curves_effnet.png",
+    },
+}
 
 
 # ==========================================================================
 # Data loading
 # ==========================================================================
-def load_real_data(output_dir, weights_path):
+def load_real_data(output_dir, weights_path, train_file, test_file):
     """Load both npz embedding files and the classifier head (W, b) from disk."""
-    train_path = os.path.join(output_dir, "known_train_embeddings.npz")
-    test_path = os.path.join(output_dir, "open_set_test_embeddings.npz")
+    train_path = os.path.join(output_dir, train_file)
+    test_path = os.path.join(output_dir, test_file)
 
     for path in (train_path, test_path):
         if not os.path.exists(path):
             raise FileNotFoundError(
                 f"Expected embedding file not found: {path}\n"
-                "Run main_cnn_analysis.py first to generate the embeddings."
+                "Generate the embeddings first (generate_open_set_embeddings.py)."
             )
 
     train_npz = np.load(train_path, allow_pickle=True)
@@ -73,6 +92,14 @@ def load_real_data(output_dir, weights_path):
     }
 
 
+# Classifier-head keys per backbone: ResNet18 uses backbone.fc, EfficientNet-B0
+# uses backbone.classifier.1 (the Linear inside its Sequential classifier).
+_HEAD_KEYS = [
+    ("backbone.fc.weight", "backbone.fc.bias"),
+    ("backbone.classifier.1.weight", "backbone.classifier.1.bias"),
+]
+
+
 def _load_classifier_head(weights_path):
     """Rebuild the linear head (W, b) from the .pth so logits can be recomputed.
 
@@ -82,7 +109,7 @@ def _load_classifier_head(weights_path):
     if not os.path.exists(weights_path):
         raise FileNotFoundError(
             f"Classifier weights not found: {weights_path}\n"
-            "The MSP baseline needs backbone.fc.weight / backbone.fc.bias."
+            "The MSP baseline needs the final Linear layer's weight/bias."
         )
 
     import torch
@@ -91,9 +118,16 @@ def _load_classifier_head(weights_path):
     if "state_dict" in state_dict and isinstance(state_dict["state_dict"], dict):
         state_dict = state_dict["state_dict"]
 
-    W = state_dict["backbone.fc.weight"].cpu().numpy().astype(np.float64)
-    b = state_dict["backbone.fc.bias"].cpu().numpy().astype(np.float64)
-    return W, b
+    for w_key, b_key in _HEAD_KEYS:
+        if w_key in state_dict and b_key in state_dict:
+            W = state_dict[w_key].cpu().numpy().astype(np.float64)
+            b = state_dict[b_key].cpu().numpy().astype(np.float64)
+            return W, b
+
+    raise KeyError(
+        f"No known classifier-head keys found in {weights_path}. "
+        f"Tried: {_HEAD_KEYS}"
+    )
 
 
 # ==========================================================================
@@ -123,8 +157,8 @@ def energy_scores(test_emb, W, b):
 
 def mahalanobis_scores(train_emb, train_labels, test_emb, normalize=False):
     """Min Mahalanobis distance to a class mean, using one shared Ledoit-Wolf
-    covariance (per-class covariances are singular in 512-D). ``normalize=True``
-    L2-normalizes first for cosine geometry.
+    covariance (per-class covariances are singular in these high-D embedding
+    spaces). ``normalize=True`` L2-normalizes first for cosine geometry.
     """
     if normalize:
         train_emb, test_emb = _l2_normalize(train_emb), _l2_normalize(test_emb)
@@ -136,8 +170,12 @@ def mahalanobis_scores(train_emb, train_labels, test_emb, normalize=False):
     return cdist(test_emb, means, metric="mahalanobis", VI=precision).min(axis=1)
 
 
-def knn_scores(train_emb, test_emb, k=5, normalize=True):
-    """Mean distance to the k nearest known-training embeddings (L2-norm by default)."""
+def knn_scores(train_emb, test_emb, k=5, normalize=False):
+    """Mean distance to the k nearest known-training embeddings.
+
+    ``normalize=True`` L2-normalizes first (cosine geometry); ``run()`` enables
+    it. Default matches ``mahalanobis_scores`` for a consistent API.
+    """
     if normalize:
         train_emb, test_emb = _l2_normalize(train_emb), _l2_normalize(test_emb)
 
@@ -242,7 +280,7 @@ def print_comparison_table(results):
 # ==========================================================================
 # Main
 # ==========================================================================
-def run(data):
+def run(data, roc_path=None):
     train_emb = data["train_emb"]
     train_labels = data["train_labels"]
     test_emb = data["test_emb"]
@@ -295,7 +333,8 @@ def run(data):
 
     print_comparison_table(results)
 
-    roc_path = os.path.join(DEFAULT_OUTPUT_DIR, "roc_curves.png")
+    if roc_path is None:
+        roc_path = os.path.join(DEFAULT_OUTPUT_DIR, "roc_curves.png")
     plot_roc_curves(y_true, scores, results, roc_path)
 
     return results
@@ -337,22 +376,36 @@ def main():
         description="Open-set recognition scoring for PlantNet embeddings."
     )
     parser.add_argument(
+        "--model",
+        choices=list(MODEL_PRESETS),
+        default="resnet18",
+        help="Which backbone's embeddings/weights to score (default: resnet18).",
+    )
+    parser.add_argument(
         "--output-dir",
         default=DEFAULT_OUTPUT_DIR,
-        help="Directory containing the .npz embedding files "
-        f"(default: {DEFAULT_OUTPUT_DIR}).",
+        help=f"Directory with the .npz embedding files (default: {DEFAULT_OUTPUT_DIR}).",
     )
     parser.add_argument(
         "--weights",
-        default=DEFAULT_WEIGHTS_PATH,
-        help="Path to resnet18_finetuned_knowns.pth "
-        f"(default: {DEFAULT_WEIGHTS_PATH}).",
+        help="Override path to the fine-tuned checkpoint (.pth).",
+    )
+    parser.add_argument(
+        "--train-file", help="Override known-train .npz filename."
+    )
+    parser.add_argument(
+        "--test-file", help="Override open-set test .npz filename."
     )
     args = parser.parse_args()
 
-    print("=== Loading embeddings from disk ===")
-    data = load_real_data(args.output_dir, args.weights)
-    run(data)
+    preset = MODEL_PRESETS[args.model]
+    weights = args.weights or os.path.join(SCRIPT_DIR, preset["weights"])
+    train_file = args.train_file or preset["train_file"]
+    test_file = args.test_file or preset["test_file"]
+
+    print(f"=== Scoring {args.model} embeddings ===")
+    data = load_real_data(args.output_dir, weights, train_file, test_file)
+    run(data, roc_path=os.path.join(args.output_dir, preset["roc_file"]))
 
 
 if __name__ == "__main__":

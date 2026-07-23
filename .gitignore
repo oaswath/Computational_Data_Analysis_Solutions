@@ -9,5 +9,10 @@ __pycache__/
 Project/plantnet_300K.zip
 Project/Solution/Data/plantnet_300K/images/
 
-# Generated ROC figure is regenerated on each run (kept out; npz are committed via LFS)
-Project/Solution/open_set_outputs/roc_curves.png
+# EfficientNet embeddings are produced by the merged EfficientNet pipeline (or
+# generate_open_set_embeddings.py --model efficientnet); regenerate locally
+# rather than commit -- the train file is ~222MB, too large even for LFS.
+Project/Solution/open_set_outputs/known_train_embeddings_effnet.npz
+Project/Solution/open_set_outputs/open_set_test_embeddings_effnet.npz
+# ...and its ROC snapshot (regenerated when the effnet scorer is run locally)
+Project/Solution/open_set_outputs/roc_curves_effnet.png
