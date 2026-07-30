@@ -1,0 +1,19 @@
+# Python 3.12.13
+#
+# Versions pinned below are those verified in the evaluation environment used
+# for the open-set scoring, extended evaluation, and ablation scripts.
+numpy==2.5.1
+scipy==1.18.0
+scikit-learn==1.9.0
+matplotlib==3.11.1
+torch==2.13.0
+pillow==12.3.0
+
+# Required only by the curation and training stage (biodiversity_screening_
+# data_curation.py, main_cnn_analysis.py, main_efficientnetB0_analysis.py,
+# generate_open_set_embeddings.py). These ran in the original training
+# environment rather than the evaluation one, so no version is recorded.
+torchvision
+pandas
+seaborn
+tqdm

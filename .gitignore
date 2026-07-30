@@ -4,6 +4,15 @@
 # Python
 __pycache__/
 *.pyc
+Project/.venv/
+
+# LaTeX build output for the final report
+Project/report/build/
+
+# Cached per-sample open-set scores; regenerate with extended_evaluation.py or
+# oneclass_ablation.py (the One-Class SVM fits are slow but deterministic).
+Project/Solution/open_set_outputs/scores_*.npz
+Project/Solution/open_set_outputs/oneclass_ablation_*.npz
 
 # PlantNet-300K dataset (huge; download separately, keep out of git)
 Project/plantnet_300K.zip

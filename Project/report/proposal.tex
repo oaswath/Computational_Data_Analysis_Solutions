@@ -1,0 +1,90 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{setspace}
+
+\title{Open-Set Recognition of Plant Species: Detecting Unfamiliar Flora for Biodiversity Screening}
+\author{ISYE 6740 Project Proposal}
+\date{Group 016: Aswath Oruganti \quad Bakiye Hilal Khaniyev \quad Yussif Salama}
+
+\begin{document}
+
+\maketitle
+
+\section{Problem Statement}
+
+Automated plant identification from images has advanced rapidly, with deep learning models now achieving strong performance on large biodiversity datasets. Yet nearly all of these systems are \emph{closed-set} classifiers: they are trained on a fixed list of species and, when shown an image, must return one of those species. When presented with a plant the model was never trained on, the system does not abstain or signal uncertainty; it confidently assigns the input to the most visually similar known class. This behavior is a fundamental limitation for any real monitoring application, where the species that matter most (newly introduced, range-shifting, or simply unsurveyed plants) are precisely the ones absent from the training set.
+
+This project addresses the complementary problem of \emph{open-set recognition}: building a system that can both identify plants belonging to a known reference set \emph{and} explicitly flag plants that fall outside it as ``unfamiliar.'' Rather than attempting to classify every species on Earth, the model learns a well-characterized reference set of species and reports when an observation does not match any of them. Such a capability is directly useful for biodiversity screening. A tool that reliably says ``this plant does not belong to the known reference set, flag for expert review'' provides an inexpensive first-pass filter for field workers, citizen scientists, and conservation programs, concentrating scarce botanical expertise on the observations most likely to be novel.
+
+We deliberately scope the contribution to the detection of unfamiliar species rather than to ecological judgments such as invasiveness. Whether a flagged plant is invasive, benign, or simply unsurveyed is a downstream determination that depends on regional policy and ecological context; our system answers the prior, well-posed machine learning question of whether an observation is consistent with a learned reference distribution. This framing yields a problem with clean ground truth, a rigorous evaluation protocol, and direct grounding in anomaly detection and classification methods from the course.
+
+\section{Proposed Methodology}
+
+The proposed framework consists of two stages built on a single image dataset: a feature-learning classification stage and an open-set scoring stage. We also describe the data and the splitting protocol that make the evaluation well defined.
+
+\paragraph{Data.} We will use Pl@ntNet-300K \cite{garcin2021plantnet}, a publicly available plant image dataset of 306{,}146 images spanning 1{,}081 species, released for machine learning research under a Creative Commons license. The dataset is strongly long-tailed: roughly 80\% of species (those with the fewest images) account for only about 11\% of all images, and reported classification accuracy falls sharply for sparsely represented species. To control for this and ensure each class has sufficient data for stable training, we will curate the dataset to the most image-rich species, approximately the top 20\% by image count, which together hold the large majority of the images. This curation is a data-cleaning step in its own right and yields a balanced, well-supported set of species on which a strong classifier is achievable.
+
+\paragraph{Splitting protocol.} The evaluation relies on two orthogonal splits. First, a \emph{species-level} split partitions the curated species into a ``known'' set, which the model is trained to recognize, and an ``unknown'' (held-out) set, whose species are removed from training entirely and used only to test unfamiliar-species detection. Second, an \emph{image-level} train/validation/test split is applied within the known species. The open-set test set is then the union of (i) held-out test images of known species, which the model should correctly identify, and (ii) all images of the unknown species, which the model should flag as unfamiliar. Because membership in the known or unknown set is determined by construction, ground truth for the detection task is exact and requires no additional labeling.
+
+\paragraph{Stage 1: representation learning.} A convolutional neural network (ResNet \cite{he2016resnet} or EfficientNet \cite{tan2019efficientnet}, initialized from ImageNet-pretrained weights) will be fine-tuned on the known species using transfer learning. Beyond serving as a classifier over known species, this network provides a learned feature embedding of each image (the penultimate-layer representation) that the second stage uses to reason about familiarity.
+
+\paragraph{Stage 2: open-set scoring.} We will compare several methods for converting the network's outputs into a ``known versus unfamiliar'' decision, spanning a range of sophistication. The first is a baseline maximum-softmax-probability threshold \cite{hendrycks2017baseline}, which flags an input when the classifier's top confidence is low; neural networks are known to be overconfident on inputs unlike their training data, so this provides a deliberately simple reference point. The second is a distance-based score in feature space, using the Mahalanobis distance from an input's embedding to the nearest known-class distribution \cite{lee2018mahalanobis}, which accounts for the shape and spread of each class cluster. The third treats familiarity as a one-class problem, fitting a one-class support vector machine \cite{scholkopf2001oneclass} or isolation forest \cite{liu2008isolation} to the embeddings of known plants and flagging anything outside the learned support. Comparing these approaches, rather than the classifier itself, is the analytical core of the project.
+
+\section{Planned Evaluation Strategy}
+
+Evaluation is reported separately for the two tasks the system performs: closed-set classification of known species and open-set detection of unfamiliar species.
+
+For \emph{closed-set classification}, we will report standard metrics on the held-out images of known species, including top-1 and top-5 accuracy, precision, recall, and F1-score. Because the curated data remains mildly imbalanced, we will report both overall (micro-averaged) and per-class (macro-averaged) figures, since the gap between them is itself informative about long-tail behavior.
+
+For \emph{open-set detection}, the task is binary (known versus unfamiliar), so we will report the area under the ROC curve (AUC), the false-positive rate at a high true-positive operating point, and precision, recall, and F1-score at a chosen threshold. To ensure results are not an artifact of which species happen to be held out, the entire species-level split will be repeated over several random partitions, and we will report the mean and variability across runs. We will additionally examine sensitivity to ``openness'' by varying the proportion of species held out as unknown.
+
+To put these numbers in context, the open-set scoring methods of Stage 2 will be compared directly against the maximum-softmax-probability baseline, isolating how much the distance-based and one-class methods improve detection. Finally, we will conduct a qualitative error analysis. We expect detection to be hardest when an unfamiliar species is taxonomically close to a known one (for example, sharing a genus), because such plants are visually similar and lie near the known-class clusters in feature space; quantifying how detection difficulty varies with taxonomic distance will provide insight into the method's failure modes.
+
+\section{Expected Contributions}
+
+The primary contribution of this project is a careful, comparative study of open-set recognition applied to plant images: building a classifier over a curated reference set of species and evaluating multiple, increasingly sophisticated strategies for detecting species the model has never seen. In contrast to the prevailing emphasis on closed-set classification accuracy, we focus on the more practically important and less-studied question of when a model should abstain and defer to human judgment. The work is grounded in anomaly-detection, support-vector, and dimensionality-reduction methods from the course, and it is designed to produce honest, well-characterized results (including an analysis of how data imbalance and taxonomic similarity shape performance) rather than a single headline accuracy figure. More broadly, the project demonstrates how uncertainty-aware machine learning can serve as a scalable first-pass screening tool for biodiversity monitoring, directing limited expert attention toward the observations most likely to warrant it.
+
+\begin{thebibliography}{9}
+
+\bibitem{garcin2021plantnet}
+C. Garcin, A. Joly, P. Bonnet, et al.,
+``Pl@ntNet-300K: A Plant Image Dataset with High Label Ambiguity and a Long-Tailed Distribution,''
+\emph{NeurIPS Datasets and Benchmarks Track}, 2021.
+
+\bibitem{he2016resnet}
+K. He, X. Zhang, S. Ren, and J. Sun,
+``Deep Residual Learning for Image Recognition,''
+\emph{IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}, 2016.
+
+\bibitem{tan2019efficientnet}
+M. Tan and Q. Le,
+``EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks,''
+\emph{International Conference on Machine Learning (ICML)}, 2019.
+
+\bibitem{hendrycks2017baseline}
+D. Hendrycks and K. Gimpel,
+``A Baseline for Detecting Misclassified and Out-of-Distribution Examples in Neural Networks,''
+\emph{International Conference on Learning Representations (ICLR)}, 2017.
+
+\bibitem{lee2018mahalanobis}
+K. Lee, K. Lee, H. Lee, and J. Shin,
+``A Simple Unified Framework for Detecting Out-of-Distribution Samples and Adversarial Attacks,''
+\emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2018.
+
+\bibitem{scholkopf2001oneclass}
+B. Sch\"olkopf, J. C. Platt, J. Shawe-Taylor, A. J. Smola, and R. C. Williamson,
+``Estimating the Support of a High-Dimensional Distribution,''
+\emph{Neural Computation}, 13(7):1443--1471, 2001.
+
+\bibitem{liu2008isolation}
+F. T. Liu, K. M. Ting, and Z.-H. Zhou,
+``Isolation Forest,''
+\emph{IEEE International Conference on Data Mining (ICDM)}, 2008.
+
+\end{thebibliography}
+
+\end{document}
