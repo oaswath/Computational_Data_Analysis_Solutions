@@ -358,7 +358,7 @@ Micro--macro F1 gap & $+0.124$ & $+0.128$ \\
 \end{tabular}
 \end{table}
 
-Three observations follow. First, top-1 test accuracy (0.630 and 0.735) falls below the validation accuracy in Table~\ref{tab:classification_results} (0.723 and 0.782) for both networks, by roughly nine and five percentage points respectively. Since the checkpoint was selected on the validation split, some optimism there is expected; the test figures are the honest estimate of generalization. The ranking of the two architectures is unchanged.
+Three observations follow. First, top-1 test accuracy (0.630 and 0.735) falls below the validation accuracy shown in Table~\ref{tab:classification_results} (0.704 and 0.782) and Figure~\ref{fig:val_vs_train_accuracy} for both networks, by roughly seven and five percentage points respectively. Since the checkpoint was selected on the validation split, some optimism there is expected; the test figures are the honest estimate of generalization. The ranking of the two architectures is unchanged.
 
 Second, top-5 accuracy is far higher than top-1, reaching 0.940 for EfficientNet-B0. The correct species is therefore almost always among the model's top few candidates even when the single best guess is wrong. This is characteristic of fine-grained classification with many visually similar classes, and it is encouraging for the screening application, where presenting an expert with a short candidate list is entirely acceptable.
 
@@ -368,16 +368,34 @@ Third, and most informative, macro-averaged F1 falls well below the micro-averag
 \centering
 \caption{Classification performance of the fine-tuned convolutional neural networks.}
 \label{tab:classification_results}
-
 \begin{tabular}{lcccc}
 \toprule
 Model & Epochs & Embedding Dim. & Validation Accuracy & Training Time \\
 \midrule
-ResNet-18 & 5 & 512 & 72.3\% & $\sim$385 min \\
+ResNet-18 & 5 & 512 & 70.4\% & $\sim$192 min \\
 EfficientNet-B0 & 10 & 1{,}280 & 78.2\% & $\sim$6780 min \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{resnet_val_training_accuracy.png}
+\caption{ResNet-18 (validation vs training accuracy, 5-eopchs)}
+\label{fig:val_vs_train_accuracy resnet}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{efficientnetB0_training_val_accuracy_10epochs.png}
+\caption{EfficientNet-B0 (validation vs training accuracy, 10-epochs)}
+\label{fig:val_vs_train_accuracy effnet}
+\end{subfigure}
+\caption{Validation and Traning Accuracy change for each epoch while fine-tuning the 5-epocs for ResNet-18 and 10-epochs for EfficientNet-B0.}
+\label{fig:val_vs_train_accuracy}
+\end{figure}
 
 \subsection{Representation Analysis}
 
@@ -675,7 +693,7 @@ Several limitations should be considered when interpreting the results of this s
 
 Second, the two architectures were fine-tuned for different numbers of epochs, five for ResNet-18 and ten for EfficientNet-B0. The comparison between them therefore confounds architecture with training budget, and the consistent advantage of EfficientNet-B0 cannot be attributed to architecture alone. Because the ranking of open-set methods is essentially identical across both backbones, this confound does not affect the study's principal conclusions, which concern the relative merits of the scorers rather than of the networks.
 
-Third, and most importantly, all results rest on a \emph{single} species-level partition into known and unknown sets. Our proposal planned to repeat this partition several times and report variability across runs, but each new partition changes which species the networks were trained on and therefore requires retraining both backbones from scratch. At approximately 385 and 6,780 minutes per model, even a handful of partitions was beyond the computational budget available. The species-level bootstrap in Table~\ref{tab:bootstrap} and the openness sweep in Section~\ref{sec:openness} are deliberate substitutes and should be read as such: the bootstrap captures uncertainty from \emph{which held-out species were drawn} into the evaluation set, and the sweep captures sensitivity to \emph{how many} novel species appear at test time, but neither captures the variability introduced by training the network on a different set of known species. The reported confidence intervals are therefore lower bounds on the true uncertainty, and the intervals of 0.11 to 0.15 already caution against fine-grained comparisons between closely ranked scorers.
+Third, and most importantly, all results rest on a \emph{single} species-level partition into known and unknown sets. Our proposal planned to repeat this partition several times and report variability across runs, but each new partition changes which species the networks were trained on and therefore requires retraining both backbones from scratch. At approximately 192 and 6,780 minutes per model, even a handful of partitions was beyond the computational budget available. The species-level bootstrap in Table~\ref{tab:bootstrap} and the openness sweep in Section~\ref{sec:openness} are deliberate substitutes and should be read as such: the bootstrap captures uncertainty from \emph{which held-out species were drawn} into the evaluation set, and the sweep captures sensitivity to \emph{how many} novel species appear at test time, but neither captures the variability introduced by training the network on a different set of known species. The reported confidence intervals are therefore lower bounds on the true uncertainty, and the intervals of 0.11 to 0.15 already caution against fine-grained comparisons between closely ranked scorers.
 
 Fourth, the open-set scorers were compared using threshold-free metrics and a single fixed operating point, without tuning their hyperparameters. The One-Class SVM used a fixed $\nu = 0.1$ with an RBF kernel and the $k$-nearest neighbour scorer a fixed $k = 5$, so a hyperparameter search could change their standing. We did test one such variation directly -- fitting the one-class methods on $L_2$-normalized instead of standardized embeddings -- and Table~\ref{tab:ablation} shows it does not help, but we cannot rule out that a different kernel bandwidth or a per-class one-class formulation would perform considerably better. The analysis in Section~\ref{sec:discussion} suggests the latter specifically: a one-class model fitted separately to each known species would retain the class-conditioning that we identify as the decisive factor, and would be the natural next experiment.
 
@@ -688,7 +706,7 @@ Finally, the open-set recognition methods operate exclusively on visual informat
 
 This project investigated open-set recognition for plant species identification using deep feature representations learned from convolutional neural networks. A curated subset of the Pl@ntNet-300K dataset was used to train image classification models while intentionally excluding a subset of species to simulate unfamiliar observations during evaluation.
 
-Transfer learning with ResNet-18 and EfficientNet-B0 produced discriminative feature embeddings suitable for both classification and open-set recognition, reaching 72.3\% and 78.2\% validation accuracy across 181 known species. Representation analysis showed that familiarity is not encoded by any individual embedding dimension, nor along the directions of greatest variance, establishing that open-set detection here requires methods operating on the full high-dimensional geometry.
+Transfer learning with ResNet-18 and EfficientNet-B0 produced discriminative feature embeddings suitable for both classification and open-set recognition, reaching 70.4\% and 78.2\% validation accuracy across 181 known species. Representation analysis showed that familiarity is not encoded by any individual embedding dimension, nor along the directions of greatest variance, establishing that open-set detection here requires methods operating on the full high-dimensional geometry.
 
 Comparing seven detection methods produced four concrete conclusions. Distance-based scorers operating on $L_2$-normalized embeddings clearly outperform classifier confidence, with $k$-nearest neighbour distance reaching an ROC AUC of 0.790 against 0.620 for the Maximum Softmax Probability baseline, a separation confirmed by non-overlapping bootstrap confidence intervals. Length normalization is the single most valuable preprocessing step, worth up to 12 AUC points on its own. Most instructively, global one-class methods performed at or below chance, and two controlled ablations identified why. The intuitive explanation, embedding magnitude, proved wrong: projecting the embeddings onto the unit sphere failed to rescue either method. The actual cause is the loss of class-conditioning. Substituting a single global centroid for the 181 class centroids, with metric and preprocessing held fixed, shifts AUC by roughly 0.40 and reproduces the failure almost exactly. Unfamiliar species sit in the gaps between known class clusters rather than outside the training distribution as a whole, so only methods that compare an observation against each known species individually can detect them.
 

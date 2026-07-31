@@ -160,7 +160,160 @@ def create_open_set_splits(df, unknown_ratio=0.2, random_state=42):
     
     return df_known, df_unknown
 
+
+# --- 4. The Training Loop (ENHANCED FOR HISTORY TRACKING & RESUMING) ---
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device, history=None, start_epoch=0):
+    """
+    Standard PyTorch training loop to fine-tune the ResNet18 on the known classes.
+    Now includes tracking for accuracy history and resuming capabilities.
+    """
+    print("\n--- Starting Training Loop ---")
+    since = time.time()
+    best_model_wts = copy.deepcopy(model.state_dict())
+    
+    # Initialize a new history dictionary if starting from scratch, or use the passed one
+    if history is None:
+        history = {'train_acc': [], 'val_acc': []}
+        best_acc = 0.0
+    else:
+        # If resuming, fetch the highest accuracy achieved in previous epochs
+        best_acc = max(history['val_acc']) if history['val_acc'] else 0.0
+
+    # Total display epochs for the console output
+    total_target_epochs = start_epoch + num_epochs
+
+    for epoch in range(start_epoch, total_target_epochs):
+        print(f'Epoch {epoch+1}/{total_target_epochs}')
+        print('-' * 10)
+
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()  
+                dataloader = train_loader
+            else:
+                model.eval()   
+                dataloader = val_loader
+
+            running_loss = 0.0
+            running_corrects = 0
+
+            for images, labels in tqdm(dataloader, desc=f"{phase.capitalize()} Epoch {epoch+1}"):
+                images = images.to(device)
+                labels = labels.to(device)
+
+                optimizer.zero_grad()
+
+                with torch.set_grad_enabled(phase == 'train'):
+                    outputs, _ = model(images)
+                    _, preds = torch.max(outputs, 1)
+                    loss = criterion(outputs, labels)
+
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
+                running_loss += loss.item() * images.size(0)
+                running_corrects += torch.sum(preds == labels.data)
+
+            epoch_loss = running_loss / len(dataloader.dataset)
+            epoch_acc = (running_corrects.double() / len(dataloader.dataset)).item()
+
+            print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+            
+            # Store the accuracy in our history dictionary
+            if phase == 'train':
+                history['train_acc'].append(epoch_acc)
+            else:
+                history['val_acc'].append(epoch_acc)
+
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+
+        print()
+
+    time_elapsed = time.time() - since
+    print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+    print(f'Best Validation Accuracy: {best_acc:4f}')
+
+    model.load_state_dict(best_model_wts)
+    return model, history
+'''
+
 # --- 4. The Training Loop (NEW) ---
+# --- 4. The Training Loop (ENHANCED FOR HISTORY TRACKING) ---
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
+    """
+    Standard PyTorch training loop to fine-tune the ResNet18 on the known classes.
+    Now includes tracking for accuracy history.
+    """
+    print("\n--- Starting Training Loop ---")
+    since = time.time()
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
+    
+    # Dictionary to keep track of accuracies
+    history = {'train_acc': [], 'val_acc': []}
+
+    for epoch in range(num_epochs):
+        print(f'Epoch {epoch+1}/{num_epochs}')
+        print('-' * 10)
+
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()  
+                dataloader = train_loader
+            else:
+                model.eval()   
+                dataloader = val_loader
+
+            running_loss = 0.0
+            running_corrects = 0
+
+            for images, labels in tqdm(dataloader, desc=f"{phase.capitalize()} Epoch {epoch+1}"):
+                images = images.to(device)
+                labels = labels.to(device)
+
+                optimizer.zero_grad()
+
+                with torch.set_grad_enabled(phase == 'train'):
+                    outputs, _ = model(images)
+                    _, preds = torch.max(outputs, 1)
+                    loss = criterion(outputs, labels)
+
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
+                running_loss += loss.item() * images.size(0)
+                running_corrects += torch.sum(preds == labels.data)
+
+            epoch_loss = running_loss / len(dataloader.dataset)
+            # Extract float value for tracking
+            epoch_acc = (running_corrects.double() / len(dataloader.dataset)).item()
+
+            print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+            
+            # Store the accuracy in our history dictionary
+            if phase == 'train':
+                history['train_acc'].append(epoch_acc)
+            else:
+                history['val_acc'].append(epoch_acc)
+
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+
+        print()
+
+    time_elapsed = time.time() - since
+    print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+    print(f'Best Validation Accuracy: {best_acc:4f}')
+
+    model.load_state_dict(best_model_wts)
+    return model, history
+'''
+'''
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
     """
     Standard PyTorch training loop to fine-tune the ResNet18 on the known classes.
@@ -227,7 +380,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     # Load best model weights
     model.load_state_dict(best_model_wts)
     return model
-
+'''
 # --- 5. Feature Extraction Loop ---
 def extract_embeddings(model, dataloader, device):
     model.eval()
@@ -303,6 +456,24 @@ def plot_multiple_embeddings_as_grid(embeddings, num_to_plot=16):
         plt.title(f"Idx: {i}")
         
     plt.suptitle("Activation Fingerprints {Embeddings} for First 16 Images")
+    plt.tight_layout()
+    plt.show()
+
+def plot_training_history(history):
+    """
+    Plots the training and validation accuracy across epochs.
+    """
+    epochs = range(1, len(history['train_acc']) + 1)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, history['train_acc'], 'b-o', label='Training Accuracy')
+    plt.plot(epochs, history['val_acc'], 'r-o', label='Validation Accuracy')
+    plt.title('Training and Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(epochs)
     plt.tight_layout()
     plt.show()
 
@@ -396,7 +567,138 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
     # Using a small learning rate (1e-4) to safely fine-tune the pre-trained weights
     optimizer = torch.optim.Adam(pretrained_model.parameters(), lr=1e-4)
+
+    # ==============================================================
+    # --- ENHANCED CHECKPOINT LOGIC (RESUME, HISTORY & .PTH EXTRACTION) ---
+    # ==============================================================
+    checkpoint_path_5_epochs = 'resnet18_checkpoint_5epochs.pt'
+    weights_path_5_epochs = 'resnet18_weights_5epochs.pth'
     
+    checkpoint_path_10_epochs = 'resnet18_checkpoint_10epochs.pt'
+    weights_path_10_epochs = 'resnet18_weights_10epochs.pth'
+    
+    # 1. Check if we already finished the full 10 epochs
+    if os.path.exists(checkpoint_path_10_epochs):
+        print(f"\n--- Loading fully trained checkpoint from {checkpoint_path_10_epochs} ---")
+        checkpoint = torch.load(checkpoint_path_10_epochs, map_location=device)
+        
+        pretrained_model.load_state_dict(checkpoint['model_state_dict'])
+        history = checkpoint['history']
+        
+        # Extract and save the .pth file if it doesn't exist yet
+        if not os.path.exists(weights_path_10_epochs):
+            print(f"--- Extracting weights from checkpoint and saving to '{weights_path_10_epochs}' ---")
+            torch.save(pretrained_model.state_dict(), weights_path_10_epochs)
+        
+        pretrained_model.eval() 
+        trained_model = pretrained_model 
+        print("Skipping training phase and proceeding to evaluation.")
+        
+        # Plot the complete 10-epoch history
+        plot_training_history(history)
+        
+    # 2. Check if we have the 5-epoch save file, and RESUME training
+    elif os.path.exists(checkpoint_path_5_epochs):
+        print(f"\n--- Loading pre-trained checkpoint from {checkpoint_path_5_epochs} ---")
+        checkpoint = torch.load(checkpoint_path_5_epochs, map_location=device)
+        
+        # Load weights, history, AND the optimizer state to retain momentum
+        pretrained_model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        history = checkpoint['history']
+        
+        # Extract and save the 5-epoch .pth file if it doesn't exist yet
+        if not os.path.exists(weights_path_5_epochs):
+            print(f"--- Extracting weights from 5-epoch checkpoint and saving to '{weights_path_5_epochs}' ---")
+            torch.save(pretrained_model.state_dict(), weights_path_5_epochs)
+        
+        print("\n--- Resuming training for 5 additional epochs (Epochs 6-10)... ---")
+        additional_epochs = 5 
+        
+        # Pass the pre-loaded model, history, and starting epoch back into the training loop
+        trained_model, history = train_model(
+            pretrained_model, train_loader, val_loader, criterion, optimizer, 
+            num_epochs=additional_epochs, device=device, history=history, start_epoch=5
+        )
+        
+        # Plot the newly concatenated 10-epoch history
+        plot_training_history(history)
+        
+        # Save the full 10-epoch checkpoint (.pt) and pure weights (.pth)
+        checkpoint_10 = {
+            'model_state_dict': trained_model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'history': history
+        }
+        torch.save(checkpoint_10, checkpoint_path_10_epochs)
+        torch.save(trained_model.state_dict(), weights_path_10_epochs)
+        print(f"Model checkpoint and standalone weights saved for 10 epochs.")
+        
+    # 3. If neither exist, start completely from scratch
+    else:
+        print("\n--- No pre-trained weights found. Starting training from scratch (Epochs 1-5)... ---")
+        epochs = 5 
+        
+        # Unpack both the model and the freshly generated history dictionary
+        trained_model, history = train_model(
+            pretrained_model, train_loader, val_loader, criterion, optimizer, 
+            num_epochs=epochs, device=device, start_epoch=0
+        )
+        
+        # Plot the first 5 epochs
+        plot_training_history(history)
+        
+        # Save the 5-epoch checkpoint (.pt) and pure weights (.pth)
+        checkpoint_5 = {
+            'model_state_dict': trained_model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'history': history
+        }
+        torch.save(checkpoint_5, checkpoint_path_5_epochs)
+        torch.save(trained_model.state_dict(), weights_path_5_epochs)
+        print(f"Model checkpoint and standalone weights saved for 5 epochs.")
+    # ==============================================================
+    '''
+    # ==============================================================
+    # --- ADDED: SAVE / LOAD LOGIC HERE (ENHANCED FOR HISTORY) --------
+    # ==============================================================
+    checkpoint_path = 'resnet18_finetuned_knowns_checkpoint.pt'
+    
+    if os.path.exists(checkpoint_path):
+        print(f"\n--- Loading checkpoint from {checkpoint_path} ---")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        
+        # Load both the model weights and the history
+        pretrained_model.load_state_dict(checkpoint['model_state_dict'])
+        history = checkpoint['history']
+        
+        pretrained_model.eval()  
+        trained_model = pretrained_model 
+        print("Skipping training phase and proceeding to evaluation.")
+        
+        # Plot the history loaded from disk
+        plot_training_history(history)
+        
+    else:
+        print("\n--- No checkpoint found. Starting training... ---")
+        epochs = 5  
+        
+        # Unpack both the model and the history dictionary
+        trained_model, history = train_model(pretrained_model, train_loader, val_loader, criterion, optimizer, num_epochs=epochs, device=device)
+        
+        # Plot the live history just generated
+        plot_training_history(history)
+        
+        # Save both weights and history into a single checkpoint dictionary
+        checkpoint = {
+            'model_state_dict': trained_model.state_dict(),
+            'history': history
+        }
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Model and training history saved to '{checkpoint_path}'")
+    # ============================================================
+    '''
+    '''
     # ==============================================================
     # --- ADDED: SAVE / LOAD LOGIC HERE --------
     # ==============================================================
@@ -418,6 +720,7 @@ if __name__ == "__main__":
         torch.save(trained_model.state_dict(), weights_path)
         print(f"Model weights saved to '{weights_path}'")
     # ============================================================
+    '''
     '''
     # Execute Training
     epochs = 5  # You can increase this for better performance
